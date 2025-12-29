@@ -11,7 +11,6 @@ import SwiftUI
 @main
 struct AIUsageTrackerWidgetBundle: WidgetBundle {
     var body: some Widget {
-        AIUsageTrackerWidget()
-        AIUsageTrackerWidgetControl()
+        UsageWidget()
     }
 }

@@ -2,11 +2,8 @@
 
 Codex-specific entry point. Documentation in `.agent/`.
 
-## Commands
+## Documentation
 
-Check `.agent/SYSTEM/RULES.md` for coding standards.
-
-## Sessions
-
-Document all work in `.agent/SESSIONS/YYYY-MM-DD.md` (one file per day).
-
+- `.agent/README.md` - Start here
+- `.agent/SYSTEM/` - Architecture and rules
+- `.agent/TASKS/` - Current tasks

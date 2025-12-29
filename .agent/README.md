@@ -38,7 +38,7 @@ This is the `.agent/` folder containing AI agent documentation, session tracking
 
 1. Read `SYSTEM/ai/SESSION-QUICK-START.md`
 2. Check `SYSTEM/critical/CRITICAL-NEVER-DO.md`
-3. Read today's session file (if exists): `SESSIONS/YYYY-MM-DD.md`
+3. Read today's session file (if exists): `SESSIONS/2025-12-29.md`
 
 ### During Work
 
@@ -64,5 +64,4 @@ swift,swiftui,macos,widgetkit
 
 ---
 
-**Last Updated:** 2025-01-28
-
+**Last Updated:** 2025-12-29

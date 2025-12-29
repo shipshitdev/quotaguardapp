@@ -53,15 +53,11 @@ struct MenuBarView: View {
 
             // Footer Actions
             VStack(spacing: 8) {
-                Button("Settings") {
-                    if #available(macOS 13.0, *) {
-                        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                    } else {
-                        NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-                    }
+                SettingsLink {
+                    Text("Settings")
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
-                .frame(maxWidth: .infinity)
 
                 Button("Quit") {
                     NSApplication.shared.terminate(nil)
@@ -98,7 +94,7 @@ struct ServiceRowView: View {
                         StatusIndicator(status: metrics.overallStatus)
                     }
                 } else {
-                    Button(action: openSettings) {
+                    SettingsLink {
                         HStack(spacing: 4) {
                             Image(systemName: "gearshape")
                             Text("Configure")
@@ -159,14 +155,6 @@ struct ServiceRowView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
-    }
-
-    private func openSettings() {
-        if #available(macOS 13.0, *) {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        } else {
-            NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-        }
     }
 }
 

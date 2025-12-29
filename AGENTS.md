@@ -13,4 +13,3 @@ All documentation is in `.agent/`:
 ## Quick Start
 
 Read `.agent/SYSTEM/ai/SESSION-QUICK-START.md` before starting work.
-
