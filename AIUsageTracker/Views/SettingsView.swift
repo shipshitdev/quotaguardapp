@@ -1,0 +1,214 @@
+import SwiftUI
+import AppKit
+
+struct SettingsView: View {
+    @StateObject private var authManager = AuthenticationManager.shared
+    @StateObject private var dataManager = UsageDataManager.shared
+
+    @State private var claudeAdminKey: String = ""
+    @State private var openaiAdminKey: String = ""
+
+    @State private var showingClaudeHelp = false
+    @State private var showingOpenAIHelp = false
+
+    var body: some View {
+        Form {
+            Section("Claude (Anthropic)") {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(authManager.isClaudeAuthenticated ? .green : .gray)
+                    Text(authManager.isClaudeAuthenticated ? "Connected" : "Not Connected")
+                }
+
+                SecureField("Admin API Key (sk-ant-admin...)", text: $claudeAdminKey)
+                    .textFieldStyle(.roundedBorder)
+
+                HStack {
+                    Button("Save") {
+                        _ = authManager.setClaudeAdminKey(claudeAdminKey)
+                        claudeAdminKey = ""
+                    }
+                    .disabled(claudeAdminKey.isEmpty)
+
+                    Button("Remove") {
+                        authManager.removeClaudeAdminKey()
+                    }
+                    .foregroundColor(.red)
+                    .disabled(!authManager.isClaudeAuthenticated)
+                }
+
+                Button("How to get Admin API Key") {
+                    showingClaudeHelp = true
+                }
+                .buttonStyle(.link)
+            }
+
+            Section("OpenAI") {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(authManager.isOpenAIAuthenticated ? .green : .gray)
+                    Text(authManager.isOpenAIAuthenticated ? "Connected" : "Not Connected")
+                }
+
+                SecureField("Admin API Key", text: $openaiAdminKey)
+                    .textFieldStyle(.roundedBorder)
+
+                HStack {
+                    Button("Save") {
+                        _ = authManager.setOpenAIAdminKey(openaiAdminKey)
+                        openaiAdminKey = ""
+                    }
+                    .disabled(openaiAdminKey.isEmpty)
+
+                    Button("Remove") {
+                        authManager.removeOpenAIAdminKey()
+                    }
+                    .foregroundColor(.red)
+                    .disabled(!authManager.isOpenAIAuthenticated)
+                }
+
+                Button("How to get Admin API Key") {
+                    showingOpenAIHelp = true
+                }
+                .buttonStyle(.link)
+            }
+
+            Section("Cursor") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.orange)
+                        Text("No API Available")
+                            .foregroundColor(.secondary)
+                    }
+
+                    Text("Cursor doesn't provide a public usage/billing API yet.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Button(action: {
+                        CursorService.shared.openTweetRequest()
+                    }) {
+                        HStack {
+                            Image(systemName: "bubble.left.fill")
+                            Text("Tweet @cursor_ai to request this feature")
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+
+            Section("Actions") {
+                Button("Refresh All Data") {
+                    Task {
+                        await dataManager.refreshAll()
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(minWidth: 450, minHeight: 500)
+        .sheet(isPresented: $showingClaudeHelp) {
+            ClaudeHelpView()
+        }
+        .sheet(isPresented: $showingOpenAIHelp) {
+            OpenAIHelpView()
+        }
+    }
+}
+
+struct ClaudeHelpView: View {
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("How to get Claude Admin API Key")
+                .font(.title2)
+                .bold()
+
+            Text("The Usage API requires an Admin API key, which is different from a regular API key.")
+                .foregroundColor(.secondary)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("1. Go to the Claude Console")
+                Text("2. Navigate to Settings → Admin Keys")
+                Text("3. Click 'Create Admin Key'")
+                Text("4. Copy the key (starts with sk-ant-admin...)")
+                Text("5. Paste it in the field above")
+            }
+
+            Divider()
+
+            Text("Note: You must be an organization admin to create Admin API keys. Individual accounts cannot access the Usage API.")
+                .font(.caption)
+                .foregroundColor(.orange)
+
+            HStack {
+                Button("Open Claude Console") {
+                    if let url = URL(string: "https://console.anthropic.com/settings/admin-keys") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+
+                Spacer()
+
+                Button("Close") {
+                    dismiss()
+                }
+            }
+        }
+        .padding()
+        .frame(width: 500, height: 400)
+    }
+}
+
+struct OpenAIHelpView: View {
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("How to get OpenAI Admin API Key")
+                .font(.title2)
+                .bold()
+
+            Text("The Usage API requires an Admin key from your organization settings.")
+                .foregroundColor(.secondary)
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("1. Go to OpenAI Platform")
+                Text("2. Navigate to Settings → Organization → Admin Keys")
+                Text("3. Click 'Create new admin key'")
+                Text("4. Copy the key")
+                Text("5. Paste it in the field above")
+            }
+
+            Divider()
+
+            Text("Note: You must be an organization owner or admin to create Admin keys.")
+                .font(.caption)
+                .foregroundColor(.orange)
+
+            HStack {
+                Button("Open OpenAI Settings") {
+                    if let url = URL(string: "https://platform.openai.com/settings/organization/admin-keys") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+
+                Spacer()
+
+                Button("Close") {
+                    dismiss()
+                }
+            }
+        }
+        .padding()
+        .frame(width: 500, height: 400)
+    }
+}

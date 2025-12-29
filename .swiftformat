@@ -1,0 +1,59 @@
+# SwiftFormat Configuration for AI Usage Tracker
+# https://github.com/nicklockwood/SwiftFormat
+
+# Swift version
+--swiftversion 5.9
+
+# File options
+--exclude Pods,DerivedData,.build,Build,Packages
+
+# Format options
+--indent 4
+--indentcase false
+--ifdef indent
+--linebreaks lf
+--maxwidth 120
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+--funcattributes prev-line
+--typeattributes prev-line
+--varattributes same-line
+--storedvarattrs same-line
+--computedvarattrs same-line
+
+# Spacing
+--trimwhitespace always
+--insertlines enabled
+--removelines enabled
+--emptybraces no-space
+
+# Import sorting
+--importgrouping testable-last
+
+# Self
+--self init-only
+--selfrequired
+
+# Redundancy
+--redundanttype inferred
+--stripunusedargs closure-only
+
+# Header comments (disabled - keep existing)
+--header ignore
+
+# Rules to disable
+--disable blankLinesAtStartOfScope
+--disable blankLinesAtEndOfScope
+--disable wrapMultilineStatementBraces
+--disable sortedSwitchCases
+
+# Rules to enable
+--enable isEmpty
+--enable markTypes
+--enable organizeDeclarations
+--enable sortedImports
+--enable wrapConditionalBodies
+--enable wrapEnumCases
+--enable wrapSwitchCases
