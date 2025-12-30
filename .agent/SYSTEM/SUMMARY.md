@@ -1,4 +1,4 @@
-# Project Summary - AI Usage Tracker
+# Project Summary - Quota Guard
 
 **Purpose:** Quick overview of current project state.
 **Last Updated:** 2025-12-29

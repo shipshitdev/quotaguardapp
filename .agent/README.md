@@ -1,6 +1,6 @@
-# AI Usage Tracker - Agent Documentation Hub
+# Quota Guard - Agent Documentation Hub
 
-**Welcome to the AI Usage Tracker workspace!**
+**Welcome to the Quota Guard workspace!**
 
 This is the `.agent/` folder containing AI agent documentation, session tracking, and project rules.
 

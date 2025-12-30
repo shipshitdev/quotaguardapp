@@ -4,7 +4,7 @@ import Security
 class KeychainManager {
     static let shared = KeychainManager()
     
-    private let service = "com.agenticindiedev.aiusagetracker"
+    private let service = "com.agenticindiedev.quotaguard"
     
     private init() {}
     

@@ -1,6 +1,6 @@
 # SYSTEM - Core Documentation
 
-This folder contains the core documentation for the AI Usage Tracker project.
+This folder contains the core documentation for the Quota Guard project.
 
 ## Contents
 

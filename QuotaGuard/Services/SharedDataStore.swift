@@ -4,7 +4,7 @@ import Foundation
 class SharedDataStore {
     static let shared = SharedDataStore()
     
-    private let appGroupIdentifier = "group.com.agenticindiedev.aiusagetracker"
+    private let appGroupIdentifier = "group.com.agenticindiedev.quotaguard"
     private let metricsKey = "cached_usage_metrics"
     
     private var containerURL: URL? {

@@ -112,7 +112,7 @@ struct UsageMetrics: Codable, Identifiable {
 class SharedDataStore {
     static let shared = SharedDataStore()
 
-    private let suiteName = "group.com.agenticindiedev.aiusagetracker"
+    private let suiteName = "group.com.agenticindiedev.quotaguard"
     private let metricsKey = "shared_metrics"
 
     private var defaults: UserDefaults? {
@@ -147,7 +147,7 @@ struct UsageWidget: Widget {
         StaticConfiguration(kind: kind, provider: UsageWidgetProvider()) { entry in
             UsageWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("AI Usage Tracker")
+        .configurationDisplayName("Quota Guard")
         .description("Track your Claude and OpenAI API usage")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
@@ -210,7 +210,7 @@ struct SmallWidgetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("AI Usage")
+            Text("Quota Guard")
                 .font(.headline)
 
             if let firstService = entry.metrics.keys.first,
@@ -235,7 +235,7 @@ struct MediumWidgetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("AI Usage Tracker")
+            Text("Quota Guard")
                 .font(.headline)
 
             if entry.metrics.isEmpty {
@@ -263,7 +263,7 @@ struct LargeWidgetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("AI Usage Tracker")
+            Text("Quota Guard")
                 .font(.title2)
                 .bold()
 

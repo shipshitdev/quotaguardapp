@@ -113,7 +113,7 @@ Once the Xcode project is set up:
 
 Ensure both the main app and widget extension have:
 - App Groups capability enabled
-- Same group identifier: `group.com.agenticindiedev.aiusagetracker`
+- Same group identifier: `group.com.agenticindiedev.quotaguard`
 
 ### 5. Keychain Configuration
 

@@ -1,6 +1,6 @@
-# AI Usage Tracker
+# Quota Guard
 
-An open-source macOS widget (WidgetKit + menu bar) that tracks account-level usage limits from Claude, Codex, and Cursor dashboards.
+An open-source macOS widget (WidgetKit + menu bar) that tracks account-level usage limits from Claude, OpenAI, and Cursor dashboards.
 
 ## Features
 
@@ -66,7 +66,7 @@ An open-source macOS widget (WidgetKit + menu bar) that tracks account-level usa
 1. Add the widget to Notification Center:
    - Click the date/time in the menu bar
    - Click "Edit Widgets"
-   - Search for "AI Usage Tracker"
+   - Search for "Quota Guard"
    - Select your preferred size (small, medium, or large)
 
 2. Configure the widget:

@@ -1,4 +1,4 @@
-# AI Usage Tracker
+# Quota Guard
 
 Codex-specific entry point. Documentation in `.agent/`.
 

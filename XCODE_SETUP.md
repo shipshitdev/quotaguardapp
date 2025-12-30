@@ -1,6 +1,6 @@
 # Xcode Project Setup
 
-This guide explains how to set up the Xcode project for AI Usage Tracker.
+This guide explains how to set up the Xcode project for Quota Guard.
 
 ## Creating the Xcode Project
 
@@ -34,7 +34,7 @@ swift package generate-xcodeproj
 2. Go to "Signing & Capabilities"
 3. Click "+ Capability"
 4. Add "App Groups"
-5. Create/select group: `group.com.agenticindiedev.aiusagetracker`
+5. Create/select group: `group.com.agenticindiedev.quotaguard`
 6. Enable it
 
 ### 2. Add Widget Extension Target
@@ -49,7 +49,7 @@ swift package generate-xcodeproj
 
 1. Select the `UsageWidgetExtension` target
 2. Go to "Signing & Capabilities"
-3. Add the same App Group: `group.com.agenticindiedev.aiusagetracker`
+3. Add the same App Group: `group.com.agenticindiedev.quotaguard`
 4. Set Deployment Target to macOS 13.0
 
 ### 4. Add Source Files

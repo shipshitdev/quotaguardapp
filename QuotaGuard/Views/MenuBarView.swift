@@ -9,7 +9,7 @@ struct MenuBarView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("AI Usage Tracker")
+                Text("Quota Guard")
                     .font(.headline)
                 Spacer()
                 Button(action: {

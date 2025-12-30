@@ -1,4 +1,4 @@
-# AI Usage Tracker
+# Quota Guard
 
 This file provides entry points for AI agents.
 

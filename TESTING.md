@@ -1,6 +1,6 @@
 # Testing Guide
 
-This guide explains how to test the AI Usage Tracker app.
+This guide explains how to test the Quota Guard app.
 
 ## Running the App in Xcode
 
@@ -23,7 +23,7 @@ This guide explains how to test the AI Usage Tracker app.
 ### 2. Menu Bar Popover
 - Click the menu bar icon
 - A popover should appear showing:
-  - Header with "AI Usage Tracker" and refresh button
+  - Header with "Quota Guard" and refresh button
   - Service cards (if authenticated) or "No services connected" message
   - Settings and Quit buttons at the bottom
 

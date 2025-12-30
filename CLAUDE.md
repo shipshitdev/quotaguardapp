@@ -1,4 +1,4 @@
-# AI Usage Tracker
+# Quota Guard
 
 Claude-specific entry point. Documentation in `.agent/`.
 

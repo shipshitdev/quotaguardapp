@@ -1,4 +1,4 @@
-# Architecture - AI Usage Tracker
+# Architecture - Quota Guard
 
 **Purpose:** Document what IS implemented (not what WILL BE).
 **Last Updated:** 2025-12-29

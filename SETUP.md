@@ -1,6 +1,6 @@
 # Setup Guide
 
-This guide will help you set up AI Usage Tracker on your Mac.
+This guide will help you set up Quota Guard on your Mac.
 
 ## Prerequisites
 
@@ -62,7 +62,7 @@ swift package generate-xcodeproj
 4. Go to Storage > Cookies > `claude.ai`
 5. Find the session key cookie (usually named `sessionKey` or similar)
 6. Copy the cookie value
-7. Open AI Usage Tracker Settings
+7. Open Quota Guard Settings
 8. Paste the session key in the Claude section
 9. Click "Save"
 
@@ -73,7 +73,7 @@ swift package generate-xcodeproj
 3. Open Developer Tools (`Cmd+Option+I`)
 4. Go to Storage > Cookies
 5. Copy relevant cookies (you may need to copy multiple cookies)
-6. Open AI Usage Tracker Settings
+6. Open Quota Guard Settings
 7. Paste the cookies in the Codex section
 8. Click "Save"
 
@@ -83,7 +83,7 @@ swift package generate-xcodeproj
 2. Go to Settings > Account
 3. Find your API key
 4. Copy the API key
-5. Open AI Usage Tracker Settings
+5. Open Quota Guard Settings
 6. Paste the API key in the Cursor section
 7. Click "Save"
 
@@ -93,7 +93,7 @@ swift package generate-xcodeproj
 
 1. Click the date/time in the menu bar
 2. Click "Edit Widgets"
-3. Search for "AI Usage Tracker"
+3. Search for "Quota Guard"
 4. Select your preferred size:
    - **Small**: Shows one service with key metrics
    - **Medium**: Shows all connected services
@@ -133,7 +133,7 @@ Click the icon to see detailed usage metrics for all connected services.
 ### Notifications Not Appearing
 
 1. Check System Settings > Notifications
-2. Ensure AI Usage Tracker has notification permissions
+2. Ensure Quota Guard has notification permissions
 3. Check that notification thresholds are configured
 
 ## Security Notes

@@ -1,6 +1,6 @@
 # Project Structure
 
-This document describes the structure of the AI Usage Tracker project.
+This document describes the structure of the Quota Guard project.
 
 ## Directory Layout
 

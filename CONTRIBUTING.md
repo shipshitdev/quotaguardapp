@@ -1,6 +1,6 @@
-# Contributing to AI Usage Tracker
+# Contributing to Quota Guard
 
-Thank you for your interest in contributing to AI Usage Tracker! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Quota Guard! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
 

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Script to help create Xcode project for AI Usage Tracker
+# Script to help create Xcode project for Quota Guard
 # This is a helper - you'll still need to manually add files in Xcode
 
-echo "📦 AI Usage Tracker - Xcode Project Setup"
+echo "📦 Quota Guard - Xcode Project Setup"
 echo ""
 echo "Since Swift Package Manager doesn't work well for macOS GUI apps,"
 echo "you need to create an Xcode project manually."

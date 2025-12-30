@@ -1,4 +1,4 @@
-# Project Map - AI Usage Tracker
+# Project Map - Quota Guard
 
 **Purpose:** Quick reference for project structure and responsibilities.
 **Last Updated:** 2025-12-29
@@ -8,7 +8,7 @@
 ## Directory Overview
 
 ```
-AI Usage Tracker/
+QuotaGuard/
 ├── .agent/              # AI documentation (you are here)
 ├── src/                 # Source code
 │   ├── components/      # UI components

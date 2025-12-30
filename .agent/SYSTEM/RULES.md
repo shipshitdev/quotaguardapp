@@ -1,4 +1,4 @@
-# Coding Rules - AI Usage Tracker
+# Coding Rules - Quota Guard
 
 **Purpose:** Coding standards and patterns for this project.
 **Last Updated:** 2025-12-29

@@ -1,9 +1,9 @@
-# SwiftLint Configuration for AI Usage Tracker
+# SwiftLint Configuration for Quota Guard
 # https://github.com/realm/SwiftLint
 
 # Paths to include
 included:
-  - AIUsageTracker
+  - QuotaGuard
 
 # Paths to exclude
 excluded:
