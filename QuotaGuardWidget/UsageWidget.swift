@@ -5,6 +5,7 @@ import SwiftUI
 
 enum ServiceType: String, Codable, CaseIterable, Identifiable {
     case claude = "Claude"
+    case claudeCode = "Claude Code"
     case openai = "OpenAI"
     case cursor = "Cursor"
 
@@ -12,7 +13,8 @@ enum ServiceType: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .claude: return "Claude"
+        case .claude: return "Claude API"
+        case .claudeCode: return "Claude Code"
         case .openai: return "OpenAI"
         case .cursor: return "Cursor"
         }
@@ -21,6 +23,7 @@ enum ServiceType: String, Codable, CaseIterable, Identifiable {
     var iconName: String {
         switch self {
         case .claude: return "sparkles"
+        case .claudeCode: return "terminal"
         case .openai: return "brain"
         case .cursor: return "cursorarrow.click"
         }
@@ -120,28 +123,27 @@ struct UsageMetrics: Codable, Identifiable {
 class SharedDataStore {
     static let shared = SharedDataStore()
 
-    private let suiteName = "group.dev.shipshit.quotaguard"
-    private let metricsKey = "shared_metrics"
+    private let appGroupIdentifier = "group.dev.shipshit.quotaguard"
+    private let metricsKey = "cached_usage_metrics"
 
-    private var defaults: UserDefaults? {
-        return UserDefaults(suiteName: suiteName)
+    private var containerURL: URL? {
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
     }
 
     func loadMetrics() -> [ServiceType: UsageMetrics] {
-        guard let defaults = defaults,
-              let data = defaults.data(forKey: metricsKey) else {
+        guard let containerURL = containerURL else { return [:] }
+
+        let fileURL = containerURL.appendingPathComponent("\(metricsKey).json")
+
+        guard let data = try? Data(contentsOf: fileURL),
+              let decoded = try? JSONDecoder().decode([String: UsageMetrics].self, from: data) else {
             return [:]
         }
 
-        do {
-            let decoded = try JSONDecoder().decode([String: UsageMetrics].self, from: data)
-            return decoded.reduce(into: [ServiceType: UsageMetrics]()) { result, pair in
-                if let service = ServiceType(rawValue: pair.key) {
-                    result[service] = pair.value
-                }
+        return decoded.reduce(into: [ServiceType: UsageMetrics]()) { result, pair in
+            if let service = ServiceType(rawValue: pair.key) {
+                result[service] = pair.value
             }
-        } catch {
-            return [:]
         }
     }
 }

@@ -1,7 +1,7 @@
 # Project Summary - Quota Guard
 
 **Purpose:** Quick overview of current project state.
-**Last Updated:** 2025-01-27
+**Last Updated:** 2026-01-12
 
 ---
 
@@ -15,6 +15,11 @@
 ---
 
 ## Recent Changes
+
+### 2026-01-12
+
+- **Usage Review:** Reviewed Claude Code/Codex/Cursor usage collection and documented display/gating risks (no code changes)
+- **Widget Sync Fix:** Aligned widget data source with App Group JSON and added shared entitlements
 
 ### 2025-12-31
 
