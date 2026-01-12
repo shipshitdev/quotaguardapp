@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build app
+        run: |
+          xcodebuild -project QuotaGuard.xcodeproj \
+            -scheme QuotaGuard \
+            -configuration Release \
+            -derivedDataPath build \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Create release package
+        run: |
+          # Find the built app
+          APP_PATH=$(find build -name "QuotaGuard.app" -type d | head -1)
+          echo "Found app at: $APP_PATH"
+
+          # Create a zip
+          cd $(dirname "$APP_PATH")
+          zip -r QuotaGuard-${{ github.ref_name }}.zip QuotaGuard.app
+          mv QuotaGuard-${{ github.ref_name }}.zip ${{ github.workspace }}/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: QuotaGuard-${{ github.ref_name }}.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
