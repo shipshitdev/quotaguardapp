@@ -7,6 +7,7 @@ enum ServiceType: String, Codable, CaseIterable, Identifiable {
     case claude = "Claude"
     case claudeCode = "Claude Code"
     case openai = "OpenAI"
+    case codexCli = "Codex CLI"
     case cursor = "Cursor"
 
     var id: String { rawValue }
@@ -16,6 +17,7 @@ enum ServiceType: String, Codable, CaseIterable, Identifiable {
         case .claude: return "Claude API"
         case .claudeCode: return "Claude Code"
         case .openai: return "OpenAI"
+        case .codexCli: return "Codex CLI"
         case .cursor: return "Cursor"
         }
     }
@@ -25,6 +27,7 @@ enum ServiceType: String, Codable, CaseIterable, Identifiable {
         case .claude: return "sparkles"
         case .claudeCode: return "terminal"
         case .openai: return "brain"
+        case .codexCli: return "terminal.fill"
         case .cursor: return "cursorarrow.click"
         }
     }
@@ -183,7 +186,20 @@ struct UsageWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> UsageWidgetEntry {
         UsageWidgetEntry(
             date: Date(),
-            metrics: [:]
+            metrics: [
+                .codexCli: UsageMetrics(
+                    service: .codexCli,
+                    weeklyLimit: UsageLimit(used: 30, total: 100, resetTime: nil)
+                ),
+                .cursor: UsageMetrics(
+                    service: .cursor,
+                    weeklyLimit: UsageLimit(used: 50, total: 100, resetTime: nil)
+                ),
+                .claudeCode: UsageMetrics(
+                    service: .claudeCode,
+                    weeklyLimit: UsageLimit(used: 90, total: 100, resetTime: nil)
+                )
+            ]
         )
     }
 
@@ -245,9 +261,7 @@ struct SmallWidgetView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .containerBackground(for: .widget) {
-            Color(.windowBackgroundColor)
-        }
+        .containerBackground(.fill.tertiary, for: .widget)
     }
 }
 
@@ -273,9 +287,7 @@ struct MediumWidgetView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .containerBackground(for: .widget) {
-            Color(.windowBackgroundColor)
-        }
+        .containerBackground(.fill.tertiary, for: .widget)
     }
 }
 
@@ -308,9 +320,7 @@ struct LargeWidgetView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .containerBackground(for: .widget) {
-            Color(.windowBackgroundColor)
-        }
+        .containerBackground(.fill.tertiary, for: .widget)
     }
 }
 

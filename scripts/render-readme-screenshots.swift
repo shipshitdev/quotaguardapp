@@ -147,21 +147,20 @@ struct MacOSPopoverBackground: View {
         VisualEffectView(material: .popover)
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 8)
     }
 }
 
 struct MacOSCardBackground: View {
     var body: some View {
-        RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(Color(NSColor.controlBackgroundColor).opacity(0.9))
+        VisualEffectView(material: .contentBackground)
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.white.opacity(0.4), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
             )
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -170,10 +169,9 @@ struct MacOSWidgetBackground: View {
         VisualEffectView(material: .sidebar)
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .shadow(color: Color.black.opacity(0.16), radius: 18, x: 0, y: 8)
     }
 }
 
@@ -188,13 +186,14 @@ struct MenuBarSnapshotView: View {
             VStack(spacing: 0) {
                 header
                 Divider()
-                VStack(spacing: 12) {
-                    ClaudeCodeSnapshotRow(metrics: claudeCodeMetrics, subscriptionLabel: "Max")
-                    ServiceSnapshotRow(metrics: openAIMetrics)
-                    CursorSnapshotRow(metrics: cursorMetrics, subscriptionLabel: "Pro")
+                ScrollView {
+                    VStack(spacing: 12) {
+                        ClaudeCodeSnapshotRow(metrics: claudeCodeMetrics, subscriptionLabel: "Max")
+                        ServiceSnapshotRow(metrics: openAIMetrics)
+                        CursorSnapshotRow(metrics: cursorMetrics, subscriptionLabel: "Pro")
+                    }
+                    .padding()
                 }
-                .padding()
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 Divider()
                 footer
             }
@@ -211,7 +210,7 @@ struct MenuBarSnapshotView: View {
                 .foregroundColor(.secondary)
         }
         .padding()
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.85))
+        .background(VisualEffectView(material: .headerView))
     }
 
     private var footer: some View {
@@ -222,7 +221,7 @@ struct MenuBarSnapshotView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.85))
+        .background(VisualEffectView(material: .menu))
     }
 }
 
@@ -507,14 +506,15 @@ enum SnapshotError: Error {
 }
 
 @MainActor
-func renderSnapshot<V: View>(view: V, size: CGSize, to url: URL, scale: CGFloat = 2) throws {
-    let rootView = ZStack {
-        WallpaperView()
-        view
-    }
-    let hostingView = NSHostingView(rootView: rootView.environment(\.colorScheme, .light))
+func makeWindow<V: View>(
+    content: V,
+    size: CGSize,
+    level: NSWindow.Level,
+    hasShadow: Bool,
+    isOpaque: Bool
+) -> NSWindow {
+    let hostingView = NSHostingView(rootView: content.environment(\.colorScheme, .light))
     hostingView.frame = NSRect(origin: .zero, size: size)
-    hostingView.wantsLayer = true
 
     let window = NSWindow(
         contentRect: NSRect(origin: .zero, size: size),
@@ -523,31 +523,33 @@ func renderSnapshot<V: View>(view: V, size: CGSize, to url: URL, scale: CGFloat 
         defer: false
     )
     window.isReleasedWhenClosed = false
-    window.isOpaque = false
-    window.backgroundColor = .clear
-    window.hasShadow = false
+    window.isOpaque = isOpaque
+    window.backgroundColor = isOpaque ? .black : .clear
+    window.hasShadow = hasShadow
     window.appearance = NSAppearance(named: .aqua)
+    window.level = level
+    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     window.contentView = hostingView
-    window.level = .statusBar
-    window.setFrameOrigin(NSPoint(x: 120, y: 120))
-    window.orderFrontRegardless()
+    return window
+}
 
-    hostingView.layoutSubtreeIfNeeded()
-    window.displayIfNeeded()
-    RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+@MainActor
+func captureWindow(_ window: NSWindow, to url: URL) throws {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+    process.arguments = [
+        "-l", "\(window.windowNumber)",
+        "-t", "png",
+        "-x",
+        url.path
+    ]
 
-    guard let rep = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) else {
-        throw SnapshotError.renderFailed("Failed to allocate bitmap for \(url.lastPathComponent)")
+    try process.run()
+    process.waitUntilExit()
+
+    if process.terminationStatus != 0 {
+        throw SnapshotError.outputFailed("screencapture failed for \(url.lastPathComponent)")
     }
-    rep.size = size
-    hostingView.cacheDisplay(in: hostingView.bounds, to: rep)
-
-    guard let data = rep.representation(using: .png, properties: [:]) else {
-        throw SnapshotError.outputFailed("Failed to encode \(url.lastPathComponent)")
-    }
-
-    try data.write(to: url)
-    window.orderOut(nil)
 }
 
 @main
@@ -556,6 +558,10 @@ struct SnapshotRenderer {
     static func main() throws {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
+
+        guard let screen = NSScreen.main else {
+            throw SnapshotError.renderFailed("No screen available for screenshots")
+        }
 
         let outputDir = URL(fileURLWithPath: "docs/screenshots", isDirectory: true)
         try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
@@ -592,18 +598,63 @@ struct SnapshotRenderer {
             cursorMetrics: cursorMetrics
         )
 
-        try renderSnapshot(
-            view: menuBarView,
-            size: CGSize(width: 320, height: 500),
-            to: outputDir.appendingPathComponent("menubar.png")
-        )
-
         let widgetView = WidgetMediumSnapshotView(metrics: [claudeCodeMetrics, openAIMetrics, cursorMetrics])
 
-        try renderSnapshot(
-            view: widgetView,
-            size: CGSize(width: 340, height: 170),
-            to: outputDir.appendingPathComponent("widget-medium.png")
+        let menuBarSize = CGSize(width: 320, height: 500)
+        let widgetSize = CGSize(width: 340, height: 170)
+        let backdropSize = CGSize(
+            width: min(900, screen.visibleFrame.width * 0.8),
+            height: min(600, screen.visibleFrame.height * 0.8)
         )
+        let backdropOrigin = CGPoint(
+            x: screen.visibleFrame.midX - backdropSize.width / 2,
+            y: screen.visibleFrame.midY - backdropSize.height / 2
+        )
+        let inset: CGFloat = 40
+        let menuOrigin = CGPoint(
+            x: backdropOrigin.x + inset,
+            y: backdropOrigin.y + backdropSize.height - menuBarSize.height - inset
+        )
+        let widgetOrigin = CGPoint(
+            x: backdropOrigin.x + backdropSize.width - widgetSize.width - inset,
+            y: backdropOrigin.y + backdropSize.height - widgetSize.height - inset
+        )
+
+        let backdropWindow = makeWindow(
+            content: WallpaperView(),
+            size: backdropSize,
+            level: .normal,
+            hasShadow: false,
+            isOpaque: true
+        )
+        backdropWindow.setFrameOrigin(backdropOrigin)
+        backdropWindow.orderFrontRegardless()
+
+        let menuBarWindow = makeWindow(
+            content: menuBarView,
+            size: menuBarSize,
+            level: .floating,
+            hasShadow: true,
+            isOpaque: false
+        )
+        menuBarWindow.setFrameOrigin(menuOrigin)
+        menuBarWindow.orderFrontRegardless()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        try captureWindow(menuBarWindow, to: outputDir.appendingPathComponent("menubar.png"))
+        menuBarWindow.orderOut(nil)
+
+        let widgetWindow = makeWindow(
+            content: widgetView,
+            size: widgetSize,
+            level: .floating,
+            hasShadow: true,
+            isOpaque: false
+        )
+        widgetWindow.setFrameOrigin(widgetOrigin)
+        widgetWindow.orderFrontRegardless()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.2))
+        try captureWindow(widgetWindow, to: outputDir.appendingPathComponent("widget-medium.png"))
+        widgetWindow.orderOut(nil)
+        backdropWindow.orderOut(nil)
     }
 }

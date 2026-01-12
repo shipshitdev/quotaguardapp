@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d26a"/>
+      <stop offset="100%" style="stop-color:#00f5a0"/>
+    </linearGradient>
+    <linearGradient id="o" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f7971e"/>
+      <stop offset="100%" style="stop-color:#ffd200"/>
+    </linearGradient>
+    <linearGradient id="r" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f5365c"/>
+      <stop offset="100%" style="stop-color:#ff6b6b"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="url(#bg)"/>
+
+  <!-- Circular gauge background -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#2a2a4a" stroke-width="40"/>
+
+  <!-- Gauge segments - three arcs -->
+  <!-- Green segment (0-120 degrees) -->
+  <path d="M 256 96 A 160 160 0 0 1 394.6 336"
+        fill="none" stroke="url(#g)" stroke-width="40" stroke-linecap="round"/>
+
+  <!-- Orange segment (120-240 degrees) -->
+  <path d="M 394.6 336 A 160 160 0 0 1 117.4 336"
+        fill="none" stroke="url(#o)" stroke-width="40" stroke-linecap="round"/>
+
+  <!-- Red segment (240-320 degrees) - partial -->
+  <path d="M 117.4 336 A 160 160 0 0 1 96 256"
+        fill="none" stroke="url(#r)" stroke-width="40" stroke-linecap="round"/>
+
+  <!-- Center indicator -->
+  <circle cx="256" cy="256" r="48" fill="#1a1a2e"/>
+  <circle cx="256" cy="256" r="32" fill="#2a2a4a"/>
+
+  <!-- Needle pointing to warning zone -->
+  <line x1="256" y1="256" x2="350" y2="190" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="256" cy="256" r="12" fill="#ffffff"/>
+</svg>

@@ -1,14 +1,42 @@
-# Quota Guard
+<p align="center">
+  <img src="docs/logo.svg" alt="Quota Guard" width="128" height="128">
+</p>
 
-![Project Type](https://img.shields.io/badge/Project-macOS%20App-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![macOS](https://img.shields.io/badge/macOS-13.0%2B-black)
+<h1 align="center">Quota Guard</h1>
 
-A lightweight macOS menu bar app that tracks your AI coding assistant usage limits. Monitor Claude Code, Codex CLI, and Cursor usage at a glance.
+<p align="center">
+  <strong>Track your AI coding assistant usage limits from the menu bar</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-macOS%2013.0+-black?logo=apple" alt="macOS 13.0+">
+  <img src="https://img.shields.io/badge/Swift-5.9-orange?logo=swift" alt="Swift 5.9">
+  <img src="https://img.shields.io/badge/SwiftUI-5.0-blue?logo=swift" alt="SwiftUI">
+  <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/App%20Store-Coming%20Soon-lightgrey?logo=app-store" alt="App Store Coming Soon">
+</p>
+
+---
+
+> **Note**: Quota Guard is currently in active development. The app is not yet available on the Mac App Store but will be published soon. For now, you can build from source or download pre-built binaries from the Releases page.
+
+A lightweight macOS menu bar app that monitors Claude Code, Codex CLI, and Cursor usage at a glance.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/menubar.png" alt="Menu Bar" width="300">
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/screenshots/widget-medium.png" alt="Widget" width="300">
+</p>
 
 ## Features
 
 - **Menu Bar App**: Quick access to usage data from your menu bar
+- **Widget Support**: macOS widget for at-a-glance monitoring
 - **Multi-Service Support**: Track Claude Code, Codex CLI, and Cursor
 - **Zero Configuration**: Automatically reads credentials from CLI tools (no API keys needed)
 - **Real-time Updates**: Background refresh every 15 minutes
