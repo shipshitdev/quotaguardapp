@@ -34,40 +34,115 @@ class CursorLocalService: ObservableObject {
 
     // MARK: - Database Access (cursor-stats approach)
 
-    /// Get the path to Cursor's state database
-    private func getCursorDatabasePath() -> String? {
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
-        let dbPath = "\(homeDir)/Library/Application Support/Cursor/User/globalStorage/state.vscdb"
-
-        if FileManager.default.fileExists(atPath: dbPath) {
-            return dbPath
+    /// Get the REAL home directory (not sandboxed container)
+    private func getRealHomeDirectory() -> String {
+        // In sandboxed apps, FileManager.homeDirectoryForCurrentUser returns the container path
+        // We need the actual user home directory to access Cursor's database
+        if let pw = getpwuid(getuid()) {
+            return String(cString: pw.pointee.pw_dir)
         }
+        // Fallback to environment variable
+        if let home = ProcessInfo.processInfo.environment["HOME"] {
+            return home
+        }
+        // Last resort - this will be sandboxed but better than nothing
+        return FileManager.default.homeDirectoryForCurrentUser.path
+    }
 
-        // Try alternative paths
-        let alternatePaths = [
+    /// Get the path to Cursor's state database
+    /// Scans multiple possible locations and optionally searches recursively
+    private func getCursorDatabasePath(forceRescan: Bool = false) -> String? {
+        let homeDir = getRealHomeDirectory()
+        let fileManager = FileManager.default
+
+        // Primary paths to check (most common locations)
+        let pathsToCheck = [
+            "\(homeDir)/Library/Application Support/Cursor/User/globalStorage/state.vscdb",
             "\(homeDir)/Library/Application Support/Cursor/state.vscdb",
-            "\(homeDir)/.config/Cursor/User/globalStorage/state.vscdb"
+            "\(homeDir)/.config/Cursor/User/globalStorage/state.vscdb",
+            // Additional common paths
+            "\(homeDir)/Library/Application Support/Cursor/User/workspaceStorage/state.vscdb",
+            "\(homeDir)/Library/Application Support/Cursor/globalStorage/state.vscdb",
         ]
-
-        for path in alternatePaths {
-            if FileManager.default.fileExists(atPath: path) {
+        
+        // Check each path
+        for path in pathsToCheck {
+            if fileManager.fileExists(atPath: path) {
+                print("[CursorLocalService] Found database at: \(path)")
                 return path
             }
         }
-
+        
+        // If not found and forceRescan is true, search recursively in Cursor directories
+        if forceRescan {
+            print("[CursorLocalService] Primary paths not found, scanning Cursor directories...")
+            let cursorBasePaths = [
+                "\(homeDir)/Library/Application Support/Cursor",
+                "\(homeDir)/.config/Cursor"
+            ]
+            
+            for basePath in cursorBasePaths {
+                if let foundPath = findDatabaseRecursively(in: basePath, filename: "state.vscdb") {
+                    print("[CursorLocalService] Found database via recursive search at: \(foundPath)")
+                    return foundPath
+                }
+            }
+        }
+        
+        // Log all checked paths for debugging
+        print("[CursorLocalService] Database not found. Checked paths:")
+        for path in pathsToCheck {
+            let exists = fileManager.fileExists(atPath: path)
+            print("[CursorLocalService]   \(exists ? "✓" : "✗") \(path)")
+        }
+        
+        return nil
+    }
+    
+    /// Recursively search for a database file in a directory
+    private func findDatabaseRecursively(in directory: String, filename: String) -> String? {
+        let fileManager = FileManager.default
+        
+        guard fileManager.fileExists(atPath: directory),
+              let enumerator = fileManager.enumerator(atPath: directory) else {
+            return nil
+        }
+        
+        for case let path as String in enumerator {
+            if path.hasSuffix(filename) {
+                let fullPath = "\(directory)/\(path)"
+                if fileManager.fileExists(atPath: fullPath) {
+                    return fullPath
+                }
+            }
+        }
+        
         return nil
     }
 
     /// Read access token from Cursor's SQLite database
-    func getAccessTokenFromDatabase() -> (userId: String, token: String)? {
-        guard let dbPath = getCursorDatabasePath() else {
-            print("[CursorLocalService] Database not found at expected paths")
+    /// - Parameter forceRescan: If true, will recursively search for database if not found in primary paths
+    func getAccessTokenFromDatabase(forceRescan: Bool = false) -> (userId: String, token: String)? {
+        guard let dbPath = getCursorDatabasePath(forceRescan: forceRescan) else {
+            if forceRescan {
+                print("[CursorLocalService] Database not found after rescanning all paths")
+            }
+            // Database not found - Cursor may not be installed, which is okay
+            // Don't print error on init, only when actively trying to fetch
+            return nil
+        }
+
+        // Verify file exists and is readable before attempting to open
+        let isReadable = FileManager.default.isReadableFile(atPath: dbPath)
+        if !isReadable {
+            print("[CursorLocalService] Database file not readable (sandbox blocking access)")
             return nil
         }
 
         var db: OpaquePointer?
-        guard sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            print("[CursorLocalService] Failed to open database: \(String(cString: sqlite3_errmsg(db)))")
+        let result = sqlite3_open_v2(dbPath, &db, SQLITE_OPEN_READONLY, nil)
+        guard result == SQLITE_OK else {
+            print("[CursorLocalService] SQLite open failed: \(result) - \(String(cString: sqlite3_errmsg(db)))")
             sqlite3_close(db)
             return nil
         }
@@ -145,8 +220,9 @@ class CursorLocalService: ObservableObject {
     }
 
     /// Check and update access status
-    func checkAccess() {
-        if let _ = getAccessTokenFromDatabase() {
+    /// - Parameter forceRescan: If true, will recursively search for database if not found in primary paths
+    func checkAccess(forceRescan: Bool = false) {
+        if let _ = getAccessTokenFromDatabase(forceRescan: forceRescan) {
             hasAccess = true
         } else {
             hasAccess = false
@@ -157,13 +233,14 @@ class CursorLocalService: ObservableObject {
     // MARK: - Usage Fetching
 
     func fetchUsageMetrics() async throws -> UsageMetrics {
-        guard let (userId, token) = getAccessTokenFromDatabase() else {
+        // Try without rescan first (faster), then with rescan if needed
+        guard let (userId, token) = getAccessTokenFromDatabase(forceRescan: false) ?? getAccessTokenFromDatabase(forceRescan: true) else {
             let error = ServiceError.notAuthenticated
             await MainActor.run {
                 self.lastError = error
                 self.hasAccess = false
             }
-            print("[CursorLocalService] No access token found in database")
+            print("[CursorLocalService] No access token found in database after full scan")
             throw error
         }
 

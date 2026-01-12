@@ -54,13 +54,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popover?.contentSize = NSSize(width: 320, height: 500)
         popover?.behavior = .transient
         popover?.contentViewController = NSHostingController(rootView: MenuBarView())
-        
-        // Initial data refresh
-        Task {
-            await UsageDataManager.shared.refreshAll()
-        }
-        
-        // Setup notifications
+
+        // Setup notifications (also handles initial data refresh)
         setupNotifications()
     }
     
@@ -76,10 +71,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func setupNotifications() {
-        // Request notification permission
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
-            if let error = error {
-                print("Notification permission error: \(error)")
+        // Check current authorization status first
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                // Request permission only if not yet determined
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
+                    if let error = error {
+                        print("Notification permission error: \(error)")
+                    } else if !granted {
+                        print("Notification permission denied by user")
+                    }
+                }
+            case .denied:
+                print("Notification permission was previously denied. User can enable in System Settings.")
+            case .authorized, .provisional, .ephemeral:
+                // Already authorized, no action needed
+                break
+            @unknown default:
+                break
             }
         }
         
@@ -91,15 +101,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     @MainActor
     private func monitorUsage() async {
+        // Initial refresh on app launch
+        await UsageDataManager.shared.refreshAll()
+
+        // Check for approaching limits periodically
+        // Note: UsageDataManager handles its own 15-minute auto-refresh
+        // This loop just checks metrics for notification purposes
         while true {
-            await UsageDataManager.shared.refreshAll()
-            
-            // Check for approaching limits
             for (_, metrics) in UsageDataManager.shared.metrics {
                 checkAndNotify(metrics: metrics)
             }
-            
-            // Wait 5 minutes before next check
+
+            // Wait 5 minutes before next notification check
             try? await Task.sleep(nanoseconds: 5 * 60 * 1_000_000_000)
         }
     }

@@ -31,6 +31,14 @@ enum UsageStatus {
     case good
     case warning
     case critical
+
+    var color: Color {
+        switch self {
+        case .good: return .green
+        case .warning: return .orange
+        case .critical: return .red
+        }
+    }
 }
 
 struct UsageLimit: Codable, Equatable {
@@ -112,7 +120,7 @@ struct UsageMetrics: Codable, Identifiable {
 class SharedDataStore {
     static let shared = SharedDataStore()
 
-    private let suiteName = "group.com.agenticindiedev.quotaguard"
+    private let suiteName = "group.dev.shipshit.quotaguard"
     private let metricsKey = "shared_metrics"
 
     private var defaults: UserDefaults? {
@@ -300,7 +308,7 @@ struct ServiceCompactView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Image(systemName: metrics.service.iconName)
-                    .foregroundColor(colorForStatus(metrics.overallStatus))
+                    .foregroundColor(metrics.overallStatus.color)
                 Text(metrics.service.displayName)
                     .font(.subheadline)
                     .bold()
@@ -311,19 +319,11 @@ struct ServiceCompactView: View {
             if let weeklyLimit = metrics.weeklyLimit {
                 HStack {
                     ProgressView(value: weeklyLimit.used, total: weeklyLimit.total)
-                        .tint(colorForStatus(weeklyLimit.statusColor))
+                        .tint(weeklyLimit.statusColor.color)
                     Text("\(Int(weeklyLimit.percentage))%")
                         .font(.caption)
                 }
             }
-        }
-    }
-
-    private func colorForStatus(_ status: UsageStatus) -> Color {
-        switch status {
-        case .good: return .green
-        case .warning: return .orange
-        case .critical: return .red
         }
     }
 }
@@ -335,7 +335,7 @@ struct ServiceDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Image(systemName: metrics.service.iconName)
-                    .foregroundColor(colorForStatus(metrics.overallStatus))
+                    .foregroundColor(metrics.overallStatus.color)
                 Text(metrics.service.displayName)
                     .font(.headline)
                 Spacer()
@@ -358,14 +358,6 @@ struct ServiceDetailView: View {
         .background(Color.gray.opacity(0.1))
         .cornerRadius(8)
     }
-
-    private func colorForStatus(_ status: UsageStatus) -> Color {
-        switch status {
-        case .good: return .green
-        case .warning: return .orange
-        case .critical: return .red
-        }
-    }
 }
 
 struct LimitDetailView: View {
@@ -384,19 +376,11 @@ struct LimitDetailView: View {
             }
 
             ProgressView(value: limit.used, total: limit.total)
-                .tint(colorForStatus(limit.statusColor))
+                .tint(limit.statusColor.color)
 
             Text("\(formatNumber(limit.used)) / \(formatNumber(limit.total))")
                 .font(.caption2)
                 .foregroundColor(.secondary)
-        }
-    }
-
-    private func colorForStatus(_ status: UsageStatus) -> Color {
-        switch status {
-        case .good: return .green
-        case .warning: return .orange
-        case .critical: return .red
         }
     }
 
@@ -413,15 +397,7 @@ struct WidgetStatusIndicator: View {
 
     var body: some View {
         Circle()
-            .fill(colorForStatus(status))
+            .fill(status.color)
             .frame(width: 8, height: 8)
-    }
-
-    private func colorForStatus(_ status: UsageStatus) -> Color {
-        switch status {
-        case .good: return .green
-        case .warning: return .orange
-        case .critical: return .red
-        }
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 struct UsageLimit: Codable, Equatable {
     let used: Double
@@ -37,5 +38,13 @@ enum UsageStatus {
     case good
     case warning
     case critical
+
+    var color: Color {
+        switch self {
+        case .good: return .green
+        case .warning: return .orange
+        case .critical: return .red
+        }
+    }
 }
 

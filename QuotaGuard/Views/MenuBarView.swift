@@ -28,21 +28,31 @@ struct MenuBarView: View {
 
             Divider()
 
-            // Service Cards - Always show all three services
+            // Service Cards
             ScrollView {
                 VStack(spacing: 12) {
-                    // Claude API
-                    ServiceRowView(
-                        service: .claude,
-                        isAuthenticated: authManager.isClaudeAuthenticated,
-                        metrics: dataManager.metrics[.claude]
-                    )
-
-                    // Claude Code (Local)
-                    ClaudeCodeServiceRow(
-                        hasAccess: claudeCodeService.hasAccess,
-                        metrics: dataManager.metrics[.claudeCode]
-                    )
+                    // Claude: Show Claude Code if available, otherwise Claude API
+                    // Priority: Claude Code (easier setup) > Claude API (requires admin key)
+                    if claudeCodeService.hasAccess {
+                        // User has Claude Code logged in - show that
+                        ClaudeCodeServiceRow(
+                            hasAccess: claudeCodeService.hasAccess,
+                            metrics: dataManager.metrics[.claudeCode]
+                        )
+                    } else if authManager.isClaudeAuthenticated {
+                        // User has Claude API key configured - show that
+                        ServiceRowView(
+                            service: .claude,
+                            isAuthenticated: authManager.isClaudeAuthenticated,
+                            metrics: dataManager.metrics[.claude]
+                        )
+                    } else {
+                        // Neither configured - show Claude Code with login prompt
+                        ClaudeCodeServiceRow(
+                            hasAccess: false,
+                            metrics: nil
+                        )
+                    }
 
                     // OpenAI
                     ServiceRowView(
@@ -220,7 +230,7 @@ struct ServiceRowView: View {
 
     private var headerColor: Color {
         if isAuthenticated, let metrics = metrics {
-            return colorForStatus(metrics.overallStatus)
+            return metrics.overallStatus.color
         }
         return .gray
     }
@@ -281,14 +291,6 @@ struct ServiceRowView: View {
 
         if let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)
-        }
-    }
-
-    private func colorForStatus(_ status: UsageStatus) -> Color {
-        switch status {
-        case .good: return .green
-        case .warning: return .orange
-        case .critical: return .red
         }
     }
 
@@ -437,11 +439,11 @@ struct ClaudeCodeServiceRow: View {
 
     @StateObject private var claudeCodeService = ClaudeCodeLocalService.shared
     @StateObject private var dataManager = UsageDataManager.shared
-    @State private var isExpanded: Bool = false
+    @State private var isExpanded: Bool = true  // Default expanded when has data
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header
+            // Header - tappable to expand/collapse
             HStack {
                 Image(systemName: ServiceType.claudeCode.iconName)
                     .foregroundColor(headerColor)
@@ -455,7 +457,7 @@ struct ClaudeCodeServiceRow: View {
                     }
 
                     Button(action: { isExpanded.toggle() }) {
-                        Image(systemName: isExpanded ? "chevron.up" : "gearshape")
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption)
                     }
                     .buttonStyle(.plain)
@@ -473,7 +475,8 @@ struct ClaudeCodeServiceRow: View {
                 }
             }
 
-            if hasAccess, let metrics = metrics {
+            // Expanded content - usage metrics
+            if isExpanded, hasAccess, let metrics = metrics {
                 Divider()
 
                 if let sessionLimit = metrics.sessionLimit {
@@ -535,17 +538,9 @@ struct ClaudeCodeServiceRow: View {
 
     private var headerColor: Color {
         if hasAccess, let metrics = metrics {
-            return colorForStatus(metrics.overallStatus)
+            return metrics.overallStatus.color
         }
         return .gray
-    }
-
-    private func colorForStatus(_ status: UsageStatus) -> Color {
-        switch status {
-        case .good: return .green
-        case .warning: return .orange
-        case .critical: return .red
-        }
     }
 
     private func formatDate(_ date: Date) -> String {
@@ -564,7 +559,7 @@ struct ServiceCard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: metrics.service.iconName)
-                    .foregroundColor(colorForStatus(metrics.overallStatus))
+                    .foregroundColor(metrics.overallStatus.color)
                 Text(metrics.service.displayName)
                     .font(.headline)
                 Spacer()
@@ -594,14 +589,6 @@ struct ServiceCard: View {
         .cornerRadius(8)
     }
 
-    private func colorForStatus(_ status: UsageStatus) -> Color {
-        switch status {
-        case .good: return .green
-        case .warning: return .orange
-        case .critical: return .red
-        }
-    }
-
     private func formatDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
@@ -625,7 +612,7 @@ struct LimitRow: View {
             }
 
             ProgressView(value: limit.used, total: limit.total)
-                .tint(colorForStatus(limit.statusColor))
+                .tint(limit.statusColor.color)
 
             HStack {
                 Text("\(formatNumber(limit.used)) / \(formatNumber(limit.total))")
@@ -638,14 +625,6 @@ struct LimitRow: View {
                         .foregroundColor(.secondary)
                 }
             }
-        }
-    }
-
-    private func colorForStatus(_ status: UsageStatus) -> Color {
-        switch status {
-        case .good: return .green
-        case .warning: return .orange
-        case .critical: return .red
         }
     }
 
@@ -668,15 +647,7 @@ struct StatusIndicator: View {
 
     var body: some View {
         Circle()
-            .fill(colorForStatus(status))
+            .fill(status.color)
             .frame(width: 8, height: 8)
-    }
-
-    private func colorForStatus(_ status: UsageStatus) -> Color {
-        switch status {
-        case .good: return .green
-        case .warning: return .orange
-        case .critical: return .red
-        }
     }
 }

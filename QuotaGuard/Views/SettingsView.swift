@@ -163,7 +163,8 @@ struct SettingsView: View {
                         .foregroundColor(.orange)
 
                     Button("Check Again") {
-                        cursorService.checkAccess()
+                        // Force a rescan of all possible database paths
+                        cursorService.checkAccess(forceRescan: true)
                         if cursorService.hasAccess {
                             Task {
                                 await dataManager.refreshAll()
