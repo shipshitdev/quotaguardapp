@@ -4,6 +4,7 @@ enum ServiceType: String, Codable, CaseIterable, Identifiable {
     case claude = "Claude"
     case claudeCode = "Claude Code"
     case openai = "OpenAI"
+    case codexCli = "Codex CLI"
     case cursor = "Cursor"
 
     var id: String { rawValue }
@@ -13,6 +14,7 @@ enum ServiceType: String, Codable, CaseIterable, Identifiable {
         case .claude: return "Claude API"
         case .claudeCode: return "Claude Code"
         case .openai: return "OpenAI"
+        case .codexCli: return "Codex CLI"
         case .cursor: return "Cursor"
         }
     }
@@ -22,6 +24,7 @@ enum ServiceType: String, Codable, CaseIterable, Identifiable {
         case .claude: return "sparkles"
         case .claudeCode: return "terminal"
         case .openai: return "brain"
+        case .codexCli: return "terminal.fill"
         case .cursor: return "cursorarrow.click"
         }
     }

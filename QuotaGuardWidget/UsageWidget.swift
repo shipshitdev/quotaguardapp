@@ -131,20 +131,31 @@ class SharedDataStore {
     }
 
     func loadMetrics() -> [ServiceType: UsageMetrics] {
-        guard let containerURL = containerURL else { return [:] }
-
-        let fileURL = containerURL.appendingPathComponent("\(metricsKey).json")
-
-        guard let data = try? Data(contentsOf: fileURL),
-              let decoded = try? JSONDecoder().decode([String: UsageMetrics].self, from: data) else {
+        guard let containerURL = containerURL else {
+            print("❌ [Widget] App Group container not available")
             return [:]
         }
 
-        return decoded.reduce(into: [ServiceType: UsageMetrics]()) { result, pair in
+        let fileURL = containerURL.appendingPathComponent("\(metricsKey).json")
+        print("📂 [Widget] Reading from: \(fileURL.path)")
+
+        guard let data = try? Data(contentsOf: fileURL) else {
+            print("❌ [Widget] No data file found")
+            return [:]
+        }
+
+        guard let decoded = try? JSONDecoder().decode([String: UsageMetrics].self, from: data) else {
+            print("❌ [Widget] Failed to decode JSON")
+            return [:]
+        }
+
+        let metrics = decoded.reduce(into: [ServiceType: UsageMetrics]()) { result, pair in
             if let service = ServiceType(rawValue: pair.key) {
                 result[service] = pair.value
             }
         }
+        print("✅ [Widget] Loaded \(metrics.count) services")
+        return metrics
     }
 }
 

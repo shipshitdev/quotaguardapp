@@ -1,33 +1,41 @@
 # Quota Guard
 
-![Project Type](https://img.shields.io/badge/Project-App-blue)
+![Project Type](https://img.shields.io/badge/Project-macOS%20App-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![macOS](https://img.shields.io/badge/macOS-13.0%2B-black)
 
-An open-source macOS widget (WidgetKit + menu bar) that tracks account-level usage limits from Claude, OpenAI, and Cursor dashboards.
+A lightweight macOS menu bar app that tracks your AI coding assistant usage limits. Monitor Claude Code, Codex CLI, and Cursor usage at a glance.
 
 ## Features
 
-- **WidgetKit Widgets**: Display usage metrics in Notification Center
-- **Menu Bar App**: Quick access to usage data with dropdown
-- **Multi-Service Support**: Track Claude, Codex, and Cursor usage
-- **Secure Authentication**: Session keys stored in macOS Keychain
-- **Real-time Updates**: Background refresh with smart scheduling
-- **Notifications**: Alerts when approaching limits
+- **Menu Bar App**: Quick access to usage data from your menu bar
+- **Multi-Service Support**: Track Claude Code, Codex CLI, and Cursor
+- **Zero Configuration**: Automatically reads credentials from CLI tools (no API keys needed)
+- **Real-time Updates**: Background refresh every 15 minutes
+- **Accordion UI**: Collapsible cards show compact progress bars
+- **Color-coded Status**: Green (good), Yellow (warning), Red (critical)
+
+## Supported Services
+
+| Service | Auth Method | Metrics Tracked |
+|---------|-------------|-----------------|
+| **Claude Code** | OAuth token from `claude login` | 5h session, 7-day all models, 7-day Sonnet |
+| **Codex CLI** | OAuth token from `codex login` | 5h limit, weekly limit, code review |
+| **Cursor** | Local SQLite database | Monthly usage |
 
 ## Installation
 
 ### Prerequisites
 
 - macOS 13.0 or later
-- Xcode 15.0 or later
-- Swift 5.9 or later
+- Xcode 15.0+ (for building from source)
 
 ### Build from Source
 
 1. Clone the repository:
    ```bash
-   git clone <repo-url>
-   cd apps/ai-usage-tracker
+   git clone https://github.com/user/quotaguard.git
+   cd quotaguard
    ```
 
 2. Open in Xcode:
@@ -35,75 +43,111 @@ An open-source macOS widget (WidgetKit + menu bar) that tracks account-level usa
    open QuotaGuard.xcodeproj
    ```
 
-3. Build and run:
-   - Select the `QuotaGuard` scheme
-   - Press Cmd+R to build and run
+3. Build and run (Cmd+R)
+
+### Pre-built Binary
+
+Download the latest release from the [Releases](releases) page.
+
+> **Note**: Since the app isn't notarized, you may need to right-click and select "Open" the first time, or allow it in System Settings > Privacy & Security.
 
 ## Setup
 
-### Claude Authentication
+### Claude Code
 
-1. Open Safari and navigate to `claude.ai`
-2. Log in to your account
-3. Open Developer Tools (Cmd+Option+I)
-4. Go to Storage > Cookies > claude.ai
-5. Find the session key cookie
-6. Copy the value and paste it in the app settings
+1. Install Claude Code CLI: `npm install -g @anthropic-ai/claude-code`
+2. Log in: `claude login`
+3. The app automatically reads credentials from `~/.claude/`
 
-### Codex Authentication
+### Codex CLI
 
-1. Open Safari and navigate to Codex dashboard
-2. Log in to your account
-3. The app will extract cookies automatically (requires Safari)
+1. Install Codex CLI: `npm install -g @openai/codex`
+2. Log in: `codex login`
+3. Select your team/workspace when prompted
+4. The app automatically reads credentials from `~/.codex/auth.json`
 
-### Cursor Authentication
+### Cursor
 
-1. Get your API key from Cursor settings
-2. Enter it in the app settings
-3. The app will store it securely in Keychain
+1. Install and log into Cursor IDE
+2. The app automatically reads from Cursor's local database
 
 ## Usage
 
-### Widget Setup
+1. **Launch the app** - It appears in your menu bar
+2. **Click the icon** - See all your usage metrics
+3. **Click a card header** - Expand/collapse to see details
+4. **Refresh** - Click the refresh icon to update metrics
 
-1. Add the widget to Notification Center:
-   - Click the date/time in the menu bar
-   - Click "Edit Widgets"
-   - Search for "Quota Guard"
-   - Select your preferred size (small, medium, or large)
+### Understanding the Display
 
-2. Configure the widget:
-   - Right-click the widget
-   - Select "Edit Widget"
-   - Choose which services to display
+**Collapsed view**: Shows service name + compact progress bar for quick status
 
-### Menu Bar
+**Expanded view**: Shows detailed metrics:
+- Usage percentage and progress bar
+- Reset time (when limits refresh)
+- Subscription type badge
 
-- Click the menu bar icon to see usage metrics
-- Color-coded status:
-  - Green: Plenty of usage remaining
-  - Yellow: Approaching limit
-  - Red: Near or at limit
+### Status Colors
+
+| Color | Meaning |
+|-------|---------|
+| Green | < 50% used - plenty remaining |
+| Yellow | 50-80% used - approaching limit |
+| Red | > 80% used - near or at limit |
+
+## How It Works
+
+Quota Guard reads authentication tokens from local files created by CLI tools:
+
+```
+~/.claude.ai/            # Claude Code OAuth
+~/.codex/auth.json       # Codex CLI OAuth
+~/Library/Application Support/Cursor/  # Cursor local DB
+```
+
+It then calls the respective APIs to fetch current usage data:
+- Claude: `https://api.anthropic.com/settings/usage`
+- Codex: `https://chatgpt.com/backend-api/wham/usage`
+- Cursor: Local SQLite queries
+
+**No API keys are stored** - the app uses the same OAuth tokens as the CLI tools.
+
+## Privacy & Security
+
+- All credentials remain in their original locations (managed by CLI tools)
+- No data sent to external servers (only official API calls)
+- Sandboxed app with minimal file system access
+- Open source for full transparency
 
 ## Architecture
 
-- **SwiftUI**: Modern declarative UI framework
-- **WidgetKit**: Native macOS widgets
-- **Combine**: Reactive data flow
-- **Keychain**: Secure credential storage
+- **SwiftUI** - Modern declarative UI
+- **Combine** - Reactive data flow
+- **App Sandbox** - Secure with specific entitlements for credential access
+- **URLSession** - Native networking
+
+## Troubleshooting
+
+### "Not configured" for a service
+
+Make sure you're logged into the CLI tool:
+```bash
+claude login   # For Claude Code
+codex login    # For Codex CLI
+```
+
+### Codex showing "Free" instead of Team
+
+Run `codex logout && codex login` and select your team workspace when prompted.
+
+### App can't read credentials
+
+The app needs sandbox exceptions to read CLI credential files. Rebuild from source if using a modified entitlements file.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions welcome! Please open an issue first to discuss changes.
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
-
-## Privacy
-
-- All credentials stored locally in macOS Keychain
-- No data sent to external servers
-- All processing happens on-device
-- Open source for transparency
-

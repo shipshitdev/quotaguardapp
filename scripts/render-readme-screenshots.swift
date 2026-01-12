@@ -147,7 +147,7 @@ struct MacOSPopoverBackground: View {
         VisualEffectView(material: .popover)
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 8)
@@ -156,12 +156,12 @@ struct MacOSPopoverBackground: View {
 
 struct MacOSCardBackground: View {
     var body: some View {
-        VisualEffectView(material: .contentBackground)
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(Color(NSColor.controlBackgroundColor).opacity(0.9))
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.4), lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -170,7 +170,7 @@ struct MacOSWidgetBackground: View {
         VisualEffectView(material: .sidebar)
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.35), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: Color.black.opacity(0.16), radius: 18, x: 0, y: 8)
@@ -211,7 +211,7 @@ struct MenuBarSnapshotView: View {
                 .foregroundColor(.secondary)
         }
         .padding()
-        .background(VisualEffectView(material: .headerView))
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.85))
     }
 
     private var footer: some View {
@@ -222,7 +222,7 @@ struct MenuBarSnapshotView: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 8)
-        .background(VisualEffectView(material: .menu))
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.85))
     }
 }
 
@@ -528,28 +528,17 @@ func renderSnapshot<V: View>(view: V, size: CGSize, to url: URL, scale: CGFloat 
     window.hasShadow = false
     window.appearance = NSAppearance(named: .aqua)
     window.contentView = hostingView
-    window.setFrameOrigin(NSPoint(x: -10000, y: -10000))
-    window.orderFront(nil)
+    window.level = .statusBar
+    window.setFrameOrigin(NSPoint(x: 120, y: 120))
+    window.orderFrontRegardless()
 
     hostingView.layoutSubtreeIfNeeded()
     window.displayIfNeeded()
-    RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+    RunLoop.current.run(until: Date().addingTimeInterval(0.1))
 
-    guard let rep = NSBitmapImageRep(
-        bitmapDataPlanes: nil,
-        pixelsWide: Int(size.width * scale),
-        pixelsHigh: Int(size.height * scale),
-        bitsPerSample: 8,
-        samplesPerPixel: 4,
-        hasAlpha: true,
-        isPlanar: false,
-        colorSpaceName: .deviceRGB,
-        bytesPerRow: 0,
-        bitsPerPixel: 0
-    ) else {
+    guard let rep = hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds) else {
         throw SnapshotError.renderFailed("Failed to allocate bitmap for \(url.lastPathComponent)")
     }
-
     rep.size = size
     hostingView.cacheDisplay(in: hostingView.bounds, to: rep)
 

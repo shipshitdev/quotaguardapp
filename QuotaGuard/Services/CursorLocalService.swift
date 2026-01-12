@@ -10,9 +10,9 @@ import SQLite3
 class CursorLocalService: ObservableObject {
     static let shared = CursorLocalService()
 
-    // API endpoints (discovered via testing)
-    private let usageEndpoint = "https://cursor.com/api/usage"
-    private let authMeEndpoint = "https://cursor.com/api/auth/me"
+    // API endpoints (from Vibeviewer: https://github.com/MarveleE/Vibeviewer)
+    private let usageSummaryEndpoint = "https://cursor.com/api/usage-summary"
+    private let getMeEndpoint = "https://cursor.com/api/dashboard/get-me"
 
     // URLSession with timeout configuration
     private lazy var urlSession: URLSession = {
@@ -250,59 +250,59 @@ class CursorLocalService: ObservableObject {
 
         print("[CursorLocalService] Fetching usage data from Cursor API...")
 
-        // Fetch usage data
-        let usageData = try await fetchUsage(userId: userId, token: token)
+        // Fetch usage summary data (uses /api/usage-summary endpoint)
+        let summaryData = try await fetchUsageSummary(userId: userId, token: token)
 
         // Clear any previous errors on success
         await MainActor.run {
             self.lastError = nil
+            self.subscriptionType = summaryData.membershipType
         }
 
-        // Parse the date formatter for reset time
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let resetTime = dateFormatter.date(from: usageData.startOfMonth)
+        // Parse billing cycle end date for reset time
+        var resetTime: Date? = nil
+        if let billingEnd = summaryData.billingCycleEnd {
+            let dateFormatter = ISO8601DateFormatter()
+            dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            resetTime = dateFormatter.date(from: billingEnd)
 
-        // Calculate total requests and limits across all models
-        var totalRequests: Double = 0
-        var totalTokens: Double = 0
-        var maxRequests: Double? = nil
-
-        for (_, modelUsage) in usageData.models {
-            totalRequests += Double(modelUsage.numRequests)
-            totalTokens += Double(modelUsage.numTokens)
-            if let maxReq = modelUsage.maxRequestUsage {
-                if maxRequests == nil {
-                    maxRequests = Double(maxReq)
-                } else {
-                    maxRequests! += Double(maxReq)
-                }
+            // Try without fractional seconds if that fails
+            if resetTime == nil {
+                dateFormatter.formatOptions = [.withInternetDateTime]
+                resetTime = dateFormatter.date(from: billingEnd)
             }
         }
 
-        // Default max requests if not specified (Pro plan typically has 500 fast requests)
-        let effectiveMaxRequests = maxRequests ?? 500.0
+        // Extract usage from individual plan
+        let planUsed = Double(summaryData.individualUsage?.plan?.used ?? 0)
+        let planTotal = Double(summaryData.individualUsage?.plan?.total ?? 500)
 
-        // Create usage metrics
-        // Use requests as the primary metric
+        print("[CursorLocalService] Plan type: \(summaryData.membershipType ?? "unknown")")
+        print("[CursorLocalService] Plan usage: \(Int(planUsed)) / \(Int(planTotal))")
+        print("[CursorLocalService] Billing cycle end: \(summaryData.billingCycleEnd ?? "unknown")")
+
+        // Create usage metrics using plan data
         let weeklyLimit = UsageLimit(
-            used: totalRequests,
-            total: effectiveMaxRequests,
+            used: planUsed,
+            total: planTotal,
             resetTime: resetTime
         )
 
-        // Token usage as session/secondary metric
+        // On-demand usage as secondary metric if enabled
         var sessionLimit: UsageLimit? = nil
-        if totalTokens > 0 {
-            sessionLimit = UsageLimit(
-                used: totalTokens,
-                total: totalTokens * 1.5, // Show relative to usage
-                resetTime: resetTime
-            )
+        if let onDemand = summaryData.individualUsage?.onDemand, onDemand.enabled == true {
+            let onDemandUsed = Double(onDemand.used ?? 0)
+            let onDemandLimit = Double(onDemand.limit ?? 0)
+            if onDemandUsed > 0 || onDemandLimit > 0 {
+                sessionLimit = UsageLimit(
+                    used: onDemandUsed,
+                    total: onDemandLimit > 0 ? onDemandLimit : onDemandUsed * 1.5,
+                    resetTime: resetTime
+                )
+            }
         }
 
         print("[CursorLocalService] Successfully fetched Cursor usage data")
-        print("[CursorLocalService] Total requests: \(Int(totalRequests)), Max: \(Int(effectiveMaxRequests))")
 
         return UsageMetrics(
             service: .cursor,
@@ -314,23 +314,34 @@ class CursorLocalService: ObservableObject {
 
     // MARK: - API Calls
 
-    private func fetchUsage(userId: String, token: String) async throws -> CursorUsageResponse {
-        guard let url = URL(string: usageEndpoint) else {
-            throw ServiceError.apiError("Invalid usage URL")
+    /// Build browser-like headers for Cursor API requests
+    private func buildHeaders(userId: String, token: String) -> [String: String] {
+        let authCookie = formatAuthCookie(userId: userId, token: token)
+        return [
+            "Accept": "*/*",
+            "Content-Type": "application/json",
+            "Cookie": "WorkosCursorSessionToken=\(authCookie)",
+            "Origin": "https://cursor.com",
+            "Referer": "https://cursor.com/dashboard?tab=usage",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        ]
+    }
+
+    private func fetchUsageSummary(userId: String, token: String) async throws -> CursorUsageSummaryResponse {
+        guard let url = URL(string: usageSummaryEndpoint) else {
+            throw ServiceError.apiError("Invalid usage summary URL")
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        // Set authentication via Cookie header
-        let authCookie = formatAuthCookie(userId: userId, token: token)
-        request.setValue("WorkosCursorSessionToken=\(authCookie)", forHTTPHeaderField: "Cookie")
-
         request.timeoutInterval = 30.0
 
-        print("[CursorLocalService] Calling usage endpoint: \(usageEndpoint)")
+        // Set browser-like headers
+        for (key, value) in buildHeaders(userId: userId, token: token) {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        print("[CursorLocalService] Calling usage-summary endpoint")
 
         let (data, response) = try await urlSession.data(for: request)
 
@@ -338,7 +349,7 @@ class CursorLocalService: ObservableObject {
             throw ServiceError.apiError("Invalid response type")
         }
 
-        print("[CursorLocalService] Usage response status: \(httpResponse.statusCode)")
+        print("[CursorLocalService] Usage summary response status: \(httpResponse.statusCode)")
 
         if httpResponse.statusCode == 401 {
             await MainActor.run {
@@ -350,58 +361,63 @@ class CursorLocalService: ObservableObject {
 
         guard (200...299).contains(httpResponse.statusCode) else {
             let errorMsg = String(data: data, encoding: .utf8) ?? "Unknown error"
-            print("[CursorLocalService] Usage error: \(errorMsg.prefix(200))")
+            print("[CursorLocalService] Usage summary error: \(errorMsg.prefix(200))")
             throw ServiceError.apiError("HTTP \(httpResponse.statusCode): \(errorMsg.prefix(100))")
         }
 
-        // Parse the response manually since it has dynamic keys
-        let rawResponse = String(data: data, encoding: .utf8) ?? "{}"
-        print("[CursorLocalService] Raw response: \(rawResponse.prefix(300))")
+        // Debug: print raw response
+        if let rawResponse = String(data: data, encoding: .utf8) {
+            print("[CursorLocalService] Raw usage-summary response: \(rawResponse.prefix(500))")
+        }
 
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        // Parse the response
+        let decoder = JSONDecoder()
+        do {
+            let summaryResponse = try decoder.decode(CursorUsageSummaryResponse.self, from: data)
+            print("[CursorLocalService] Parsed usage summary: used=\(summaryResponse.individualUsage?.plan?.used ?? 0), total=\(summaryResponse.individualUsage?.plan?.total ?? 0)")
+            return summaryResponse
+        } catch {
+            print("[CursorLocalService] JSON decode error: \(error)")
             throw ServiceError.parsingError
         }
-
-        // Extract startOfMonth
-        let startOfMonth = json["startOfMonth"] as? String ?? ""
-
-        // Extract model usage data (dynamic keys like "gpt-4", "claude-3.5-sonnet", etc.)
-        var models: [String: CursorModelUsage] = [:]
-
-        for (key, value) in json {
-            if key == "startOfMonth" { continue }
-
-            if let modelData = value as? [String: Any] {
-                let usage = CursorModelUsage(
-                    numRequests: modelData["numRequests"] as? Int ?? 0,
-                    numRequestsTotal: modelData["numRequestsTotal"] as? Int ?? 0,
-                    numTokens: modelData["numTokens"] as? Int ?? 0,
-                    maxTokenUsage: modelData["maxTokenUsage"] as? Int,
-                    maxRequestUsage: modelData["maxRequestUsage"] as? Int
-                )
-                models[key] = usage
-            }
-        }
-
-        print("[CursorLocalService] Parsed \(models.count) model(s)")
-
-        return CursorUsageResponse(models: models, startOfMonth: startOfMonth)
     }
 }
 
 // MARK: - Response Models
 
-/// Response from https://cursor.com/api/usage
-/// Format: { "gpt-4": { numRequests: 0, ... }, "startOfMonth": "2025-12-30T..." }
-struct CursorUsageResponse {
-    let models: [String: CursorModelUsage]
-    let startOfMonth: String
+/// Response from https://cursor.com/api/usage-summary
+/// Based on Vibeviewer implementation
+struct CursorUsageSummaryResponse: Decodable {
+    let billingCycleStart: String?
+    let billingCycleEnd: String?
+    let membershipType: String?
+    let limitType: String?
+    let individualUsage: CursorIndividualUsage?
+    let teamUsage: CursorTeamUsage?
 }
 
-struct CursorModelUsage {
-    let numRequests: Int
-    let numRequestsTotal: Int
-    let numTokens: Int
-    let maxTokenUsage: Int?
-    let maxRequestUsage: Int?
+struct CursorIndividualUsage: Decodable {
+    let plan: CursorPlanUsage?
+    let onDemand: CursorOnDemandUsage?
+}
+
+struct CursorPlanUsage: Decodable {
+    let used: Int?
+    let limit: Int?
+    let remaining: Int?
+    let included: Int?
+    let bonus: Int?
+    let total: Int?
+}
+
+struct CursorOnDemandUsage: Decodable {
+    let used: Int?
+    let limit: Int?
+    let remaining: Int?
+    let enabled: Bool?
+}
+
+struct CursorTeamUsage: Decodable {
+    let plan: CursorPlanUsage?
+    let onDemand: CursorOnDemandUsage?
 }

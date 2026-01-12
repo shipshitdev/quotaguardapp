@@ -3,9 +3,9 @@ import AppKit
 import Combine
 
 /// Service for fetching Codex CLI usage data from https://chatgpt.com/backend-api/wham/usage
-/// Reads authentication token from browser cookies/keychain and calls the Codex CLI usage API.
+/// Reads authentication token from ~/.codex/auth.json (stored by Codex CLI).
 /// Similar to ClaudeCodeLocalService, but for Codex CLI usage tracking.
-/// 
+///
 /// The API endpoint returns usage data with:
 /// - Primary window: 5-hour limit (18000 seconds)
 /// - Secondary window: 7-day limit (604800 seconds)
@@ -15,8 +15,27 @@ class CodexCliLocalService: ObservableObject {
 
     // API endpoint for Codex CLI usage
     private let usageEndpoint = "https://chatgpt.com/backend-api/wham/usage"
-    
-    private let keychainService = "chatgpt.com-codex-credentials"
+
+    // Path to Codex CLI auth file
+    private var authFilePath: String {
+        let homeDir = getRealHomeDirectory()
+        return "\(homeDir)/.codex/auth.json"
+    }
+
+    /// Get the REAL home directory (not sandboxed container)
+    private func getRealHomeDirectory() -> String {
+        // In sandboxed apps, FileManager.homeDirectoryForCurrentUser returns the container path
+        // We need the actual user home directory to access Codex CLI's auth file
+        if let pw = getpwuid(getuid()) {
+            return String(cString: pw.pointee.pw_dir)
+        }
+        // Fallback to environment variable
+        if let home = ProcessInfo.processInfo.environment["HOME"] {
+            return home
+        }
+        // Last resort - this will be sandboxed but better than nothing
+        return FileManager.default.homeDirectoryForCurrentUser.path
+    }
 
     // URLSession with timeout configuration
     private lazy var urlSession: URLSession = {
@@ -29,111 +48,85 @@ class CodexCliLocalService: ObservableObject {
 
     @Published private(set) var hasAccess: Bool = false
     @Published private(set) var lastError: ServiceError?
+    @Published private(set) var subscriptionType: String?
 
     private init() {
         // Check if we have Codex CLI credentials on init
         checkAccess()
     }
 
-    // MARK: - Keychain Access
+    // MARK: - Auth File Access
 
-    /// Get OAuth/session token from chatgpt.com keychain storage
-    /// This reads the authentication token stored by the browser or Codex CLI
-    /// 
-    /// To get the token:
-    /// 1. Open Safari and navigate to https://chatgpt.com/codex/settings/usage
-    /// 2. Log in to your account
-    /// 3. Open Developer Tools (Cmd+Option+I)
-    /// 4. Go to Storage > Cookies > chatgpt.com
-    /// 5. Find the session token cookie (common names:
-    ///    - __Secure-next-auth.session-token
-    ///    - __Secure-authjs.session-token
-    ///    - chatgpt_session)
-    /// 6. Copy the cookie value
-    /// 7. Save it using saveAuthToken() method
+    /// Read OAuth access token from ~/.codex/auth.json
+    /// This file is created and maintained by the Codex CLI when user logs in
     func getAuthToken() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: "codex_cli_token",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
+        let path = authFilePath
+        print("[CodexCliLocalService] Reading auth file: \(path)")
 
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let fileExists = FileManager.default.fileExists(atPath: path)
+        print("[CodexCliLocalService] File exists: \(fileExists)")
 
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let token = String(data: data, encoding: .utf8) else {
+        if !fileExists {
+            print("[CodexCliLocalService] Auth file not found at \(path)")
             return nil
         }
 
-        return token
+        guard let data = FileManager.default.contents(atPath: path) else {
+            print("[CodexCliLocalService] Could not read file contents (permission issue?)")
+            return nil
+        }
+
+        print("[CodexCliLocalService] Read \(data.count) bytes")
+
+        // Log raw JSON for debugging
+        if let rawJson = String(data: data, encoding: .utf8) {
+            print("[CodexCliLocalService] Raw JSON (first 200 chars): \(rawJson.prefix(200))")
+        }
+
+        do {
+            let authData = try JSONDecoder().decode(CodexAuthFile.self, from: data)
+            print("[CodexCliLocalService] Decoded auth file - tokens: \(authData.tokens != nil), accessToken: \(authData.tokens?.accessToken != nil)")
+            if let token = authData.tokens?.accessToken {
+                print("[CodexCliLocalService] Access token found (length: \(token.count))")
+                return token
+            } else {
+                print("[CodexCliLocalService] No access token in auth file")
+                return nil
+            }
+        } catch {
+            print("[CodexCliLocalService] Failed to parse auth.json: \(error)")
+            return nil
+        }
     }
 
-    /// Alternative: Read session cookie from Safari cookies
-    /// This attempts to read the session cookie directly from Safari's cookie storage
-    private func getSessionCookieFromSafari() -> String? {
-        // Safari stores cookies in ~/Library/Cookies/Cookies.binarycookies
-        // However, accessing Safari cookies directly requires private APIs
-        // For now, we'll rely on manual cookie extraction or keychain storage
-        // Users can extract cookies manually from Safari DevTools and store them
-        
-        // TODO: Implement Safari cookie reading if needed
-        // This would require using private APIs or cookie extraction tools
-        return nil
+    /// Read account ID from ~/.codex/auth.json
+    /// Required for the ChatGPT-Account-Id header to get team/workspace data
+    func getAccountId() -> String? {
+        let path = authFilePath
+
+        guard let data = FileManager.default.contents(atPath: path) else {
+            return nil
+        }
+
+        do {
+            let authData = try JSONDecoder().decode(CodexAuthFile.self, from: data)
+            if let accountId = authData.tokens?.accountId {
+                print("[CodexCliLocalService] Account ID found: \(accountId)")
+                return accountId
+            }
+            return nil
+        } catch {
+            return nil
+        }
     }
 
-    /// Save authentication token to keychain
-    /// Users can extract this token from chatgpt.com cookies (see getAuthToken help)
-    func saveAuthToken(_ token: String) -> Bool {
-        guard let tokenData = token.data(using: .utf8) else {
-            return false
-        }
-        
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: "codex_cli_token"
-        ]
-        
-        // Delete existing item first
-        SecItemDelete(deleteQuery as CFDictionary)
-        
-        // Add new item
-        let addQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: "codex_cli_token",
-            kSecValueData as String: tokenData
-        ]
-        
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-        let success = status == errSecSuccess
-        
-        if success {
-            checkAccess()
-        }
-        
-        return success
-    }
-    
-    /// Remove authentication token from keychain
-    func removeAuthToken() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: keychainService,
-            kSecAttrAccount as String: "codex_cli_token"
-        ]
-        
-        SecItemDelete(query as CFDictionary)
-        checkAccess()
-    }
 
     /// Check and update access status
     func checkAccess() {
-        if let _ = getAuthToken() {
+        let token = getAuthToken()
+        let hasToken = token != nil
+        print("[CodexCliLocalService] checkAccess: authFile=\(authFilePath), hasToken=\(hasToken)")
+        if hasToken {
             hasAccess = true
         } else {
             hasAccess = false
@@ -152,36 +145,28 @@ class CodexCliLocalService: ObservableObject {
             throw error
         }
 
-        // The actual endpoint: https://chatgpt.com/backend-api/wham/usage
         guard let url = URL(string: usageEndpoint) else {
             throw ServiceError.apiError("Invalid usage endpoint URL")
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        
-        // Use Cookie header for authentication
-        // The token should be the session cookie value from chatgpt.com
-        // Common cookie names:
-        // - __Secure-next-auth.session-token
-        // - __Secure-authjs.session-token
-        // Users should extract the full cookie string including name=value
-        // If they only provide the value, we'll try common cookie names
-        let cookieHeader: String
-        if token.contains("=") {
-            // User provided full cookie string (name=value)
-            cookieHeader = token
-        } else {
-            // User provided just the value, try common cookie names
-            cookieHeader = "__Secure-next-auth.session-token=\(token)"
+
+        // Use Bearer token auth (from ~/.codex/auth.json)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        // CRITICAL: Include ChatGPT-Account-Id header to get team/workspace data
+        // Without this header, API returns free plan data even for team accounts
+        if let accountId = getAccountId() {
+            request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
+            print("[CodexCliLocalService] Using account ID: \(accountId)")
         }
-        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        
-        // Set user agent to match browser
+
+        // Browser-like headers to avoid blocks
+        request.setValue("https://chatgpt.com/", forHTTPHeaderField: "Referer")
+        request.setValue("https://chatgpt.com", forHTTPHeaderField: "Origin")
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
-        
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 30.0
 
         do {
@@ -220,11 +205,25 @@ class CodexCliLocalService: ObservableObject {
             await MainActor.run {
                 self.lastError = nil
                 self.hasAccess = true
+                self.subscriptionType = usageResponse.planType
+            }
+
+            // Check if rate limits exist (free accounts have null rate_limit)
+            guard let rateLimit = usageResponse.rateLimit else {
+                print("[CodexCliLocalService] No rate limit data (free account or no usage yet)")
+                // Return empty metrics for free accounts
+                return UsageMetrics(
+                    service: .codexCli,
+                    sessionLimit: nil,
+                    weeklyLimit: nil,
+                    codeReviewLimit: nil
+                )
             }
 
             // Map the response to UsageMetrics
             // Primary window (5 hours = 18000 seconds) = session limit
-            let primaryWindow = usageResponse.rateLimit.primaryWindow
+            let primaryWindow = rateLimit.primaryWindow
+            print("[CodexCliLocalService] Primary window: usedPercent=\(primaryWindow.usedPercent), resetAt=\(primaryWindow.resetAt)")
             let sessionLimit = UsageLimit(
                 used: primaryWindow.usedPercent,
                 total: 100.0,
@@ -232,7 +231,8 @@ class CodexCliLocalService: ObservableObject {
             )
 
             // Secondary window (7 days = 604800 seconds) = weekly limit
-            let secondaryWindow = usageResponse.rateLimit.secondaryWindow
+            let secondaryWindow = rateLimit.secondaryWindow
+            print("[CodexCliLocalService] Secondary window: usedPercent=\(secondaryWindow?.usedPercent ?? -1), resetAt=\(secondaryWindow?.resetAt ?? 0)")
             let weeklyLimit = UsageLimit(
                 used: secondaryWindow?.usedPercent ?? 0.0,
                 total: 100.0,
@@ -242,6 +242,7 @@ class CodexCliLocalService: ObservableObject {
             // Code review rate limit (7 days window) = code review limit
             var codeReviewLimit: UsageLimit? = nil
             if let codeReviewPrimary = usageResponse.codeReviewRateLimit?.primaryWindow {
+                print("[CodexCliLocalService] Code review: usedPercent=\(codeReviewPrimary.usedPercent), resetAt=\(codeReviewPrimary.resetAt)")
                 codeReviewLimit = UsageLimit(
                     used: codeReviewPrimary.usedPercent,
                     total: 100.0,
@@ -249,8 +250,9 @@ class CodexCliLocalService: ObservableObject {
                 )
             }
 
+            print("[CodexCliLocalService] Final metrics: session=\(sessionLimit.percentage)%, weekly=\(weeklyLimit.percentage)%, codeReview=\(codeReviewLimit?.percentage ?? -1)%")
             return UsageMetrics(
-                service: .openai, // Using .openai for now - may need to add .codexCli to ServiceType
+                service: .codexCli,
                 sessionLimit: sessionLimit,
                 weeklyLimit: weeklyLimit,
                 codeReviewLimit: codeReviewLimit
@@ -296,9 +298,9 @@ class CodexCliLocalService: ObservableObject {
 /// Response structure for Codex CLI usage API from https://chatgpt.com/backend-api/wham/usage
 struct CodexCliUsageResponse: Codable {
     let planType: String
-    let rateLimit: RateLimit
+    let rateLimit: RateLimit?  // Can be null for free accounts
     let codeReviewRateLimit: CodeReviewRateLimit?
-    let credits: Credits
+    let credits: Credits?  // Can be null for free accounts
 
     enum CodingKeys: String, CodingKey {
         case planType = "plan_type"
@@ -363,5 +365,34 @@ struct Credits: Codable {
         case balance
         case approxLocalMessages = "approx_local_messages"
         case approxCloudMessages = "approx_cloud_messages"
+    }
+}
+
+// MARK: - Auth File Models
+
+/// Structure of ~/.codex/auth.json
+struct CodexAuthFile: Codable {
+    let openaiApiKey: String?
+    let tokens: CodexTokens?
+    let lastRefresh: String?
+
+    enum CodingKeys: String, CodingKey {
+        case openaiApiKey = "OPENAI_API_KEY"
+        case tokens
+        case lastRefresh = "last_refresh"
+    }
+}
+
+struct CodexTokens: Codable {
+    let idToken: String?
+    let accessToken: String?
+    let refreshToken: String?
+    let accountId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case idToken = "id_token"
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case accountId = "account_id"
     }
 }

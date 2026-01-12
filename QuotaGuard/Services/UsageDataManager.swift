@@ -67,19 +67,17 @@ class UsageDataManager: ObservableObject {
             }
         }
 
-        // Fetch Codex CLI metrics (local auth)
+        // Fetch Codex CLI metrics (local auth from ~/.codex/auth.json)
         if codexCliService.hasAccess {
             do {
                 let metrics = try await codexCliService.fetchUsageMetrics()
-                // Using .openai for now - Codex CLI usage will overwrite API usage if both are available
-                // TODO: Consider adding .codexCli to ServiceType if we want to distinguish
-                newMetrics[.openai] = metrics
+                newMetrics[.codexCli] = metrics
             } catch {
                 lastError = error
                 print("Failed to fetch Codex CLI metrics: \(error)")
                 // Preserve cached data if available (graceful degradation)
-                if let cachedMetrics = self.metrics[.openai] {
-                    newMetrics[.openai] = cachedMetrics
+                if let cachedMetrics = self.metrics[.codexCli] {
+                    newMetrics[.codexCli] = cachedMetrics
                 }
             }
         }
@@ -141,27 +139,24 @@ class UsageDataManager: ObservableObject {
                     }
                 }
             case .openai:
-                // Try Codex CLI first (local auth), then fall back to OpenAI API
-                if codexCliService.hasAccess {
-                    do {
-                        newMetrics = try await codexCliService.fetchUsageMetrics()
-                    } catch {
-                        // On individual refresh, preserve cached data if fetch fails
-                        if let cachedMetric = metrics[service] {
-                            newMetrics = cachedMetric
-                            lastError = error
-                        } else if authManager.isOpenAIAuthenticated {
-                            // Fall back to OpenAI API if Codex CLI fails but API is available
-                            newMetrics = try await openaiService.fetchUsageMetrics()
-                        } else {
-                            throw error
-                        }
-                    }
-                } else if authManager.isOpenAIAuthenticated {
-                    // Use OpenAI API if Codex CLI is not available
-                    newMetrics = try await openaiService.fetchUsageMetrics()
-                } else {
+                guard authManager.isOpenAIAuthenticated else {
                     throw ServiceError.notAuthenticated
+                }
+                newMetrics = try await openaiService.fetchUsageMetrics()
+            case .codexCli:
+                guard codexCliService.hasAccess else {
+                    throw ServiceError.notAuthenticated
+                }
+                do {
+                    newMetrics = try await codexCliService.fetchUsageMetrics()
+                } catch {
+                    // On individual refresh, preserve cached data if fetch fails
+                    if let cachedMetric = metrics[service] {
+                        newMetrics = cachedMetric
+                        lastError = error
+                    } else {
+                        throw error
+                    }
                 }
             case .cursor:
                 guard cursorService.hasAccess else {

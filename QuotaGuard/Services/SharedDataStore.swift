@@ -14,8 +14,12 @@ class SharedDataStore {
     private init() {}
     
     func saveMetrics(_ metrics: [ServiceType: UsageMetrics]) {
-        guard let containerURL = containerURL else { return }
-        
+        guard let containerURL = containerURL else {
+            print("❌ [SharedDataStore] App Group container not available. Enable 'App Groups' capability in Xcode for both app and widget targets.")
+            return
+        }
+
+        print("✅ [SharedDataStore] Writing to App Group: \(containerURL.path)")
         let fileURL = containerURL.appendingPathComponent("\(metricsKey).json")
         
         let encoded = metrics.reduce(into: [String: UsageMetrics]()) { result, pair in

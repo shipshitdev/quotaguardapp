@@ -1,11 +1,23 @@
 import SwiftUI
 import AppKit
 
+// Which card is currently expanded (accordion behavior - only one at a time)
+enum ExpandedCard: Equatable {
+    case none
+    case claudeCode
+    case codexCli
+    case cursor
+}
+
 struct MenuBarView: View {
     @StateObject private var dataManager = UsageDataManager.shared
     @StateObject private var authManager = AuthenticationManager.shared
     @StateObject private var claudeCodeService = ClaudeCodeLocalService.shared
+    @StateObject private var codexCliService = CodexCliLocalService.shared
     @StateObject private var cursorService = CursorLocalService.shared
+
+    // Track which card is expanded (only one at a time)
+    @State private var expandedCard: ExpandedCard = .none
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,7 +49,8 @@ struct MenuBarView: View {
                         // User has Claude Code logged in - show that
                         ClaudeCodeServiceRow(
                             hasAccess: claudeCodeService.hasAccess,
-                            metrics: dataManager.metrics[.claudeCode]
+                            metrics: dataManager.metrics[.claudeCode],
+                            expandedCard: $expandedCard
                         )
                     } else if authManager.isClaudeAuthenticated {
                         // User has Claude API key configured - show that
@@ -50,21 +63,23 @@ struct MenuBarView: View {
                         // Neither configured - show Claude Code with login prompt
                         ClaudeCodeServiceRow(
                             hasAccess: false,
-                            metrics: nil
+                            metrics: nil,
+                            expandedCard: $expandedCard
                         )
                     }
 
-                    // OpenAI
-                    ServiceRowView(
-                        service: .openai,
-                        isAuthenticated: authManager.isOpenAIAuthenticated,
-                        metrics: dataManager.metrics[.openai]
+                    // Codex CLI (local auth from ~/.codex/auth.json)
+                    CodexCliServiceRow(
+                        hasAccess: codexCliService.hasAccess,
+                        metrics: dataManager.metrics[.codexCli],
+                        expandedCard: $expandedCard
                     )
 
                     // Cursor (Local)
                     CursorServiceRow(
                         hasAccess: cursorService.hasAccess,
-                        metrics: dataManager.metrics[.cursor]
+                        metrics: dataManager.metrics[.cursor],
+                        expandedCard: $expandedCard
                     )
                 }
                 .padding()
@@ -117,6 +132,8 @@ struct ServiceRowView: View {
                     Button(action: { isExpanded.toggle() }) {
                         Image(systemName: isExpanded ? "chevron.up" : "gearshape")
                             .font(.caption)
+                            .frame(width: 24, height: 24)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(.secondary)
@@ -239,12 +256,10 @@ struct ServiceRowView: View {
         switch service {
         case .claude:
             return "Admin API Key (sk-ant-admin...)"
-        case .claudeCode:
+        case .claudeCode, .codexCli, .cursor:
             return ""
         case .openai:
             return "Admin API Key"
-        case .cursor:
-            return ""
         }
     }
 
@@ -252,12 +267,10 @@ struct ServiceRowView: View {
         switch service {
         case .claude:
             _ = authManager.setClaudeAdminKey(apiKeyInput)
-        case .claudeCode:
-            break // Claude Code uses directory picker, not API key
+        case .claudeCode, .codexCli, .cursor:
+            break // These use local auth, not API key
         case .openai:
             _ = authManager.setOpenAIAdminKey(apiKeyInput)
-        case .cursor:
-            break
         }
         apiKeyInput = ""
         isExpanded = false
@@ -267,12 +280,10 @@ struct ServiceRowView: View {
         switch service {
         case .claude:
             authManager.removeClaudeAdminKey()
-        case .claudeCode:
-            break // Claude Code uses directory picker
+        case .claudeCode, .codexCli, .cursor:
+            break // These use local auth
         case .openai:
             authManager.removeOpenAIAdminKey()
-        case .cursor:
-            break
         }
     }
 
@@ -281,12 +292,10 @@ struct ServiceRowView: View {
         switch service {
         case .claude:
             urlString = "https://console.anthropic.com/settings/admin-keys"
-        case .claudeCode:
-            return // No help URL for local file access
+        case .claudeCode, .codexCli, .cursor:
+            return // No help URL for local auth services
         case .openai:
             urlString = "https://platform.openai.com/settings/organization/admin-keys"
-        case .cursor:
-            return
         }
 
         if let url = URL(string: urlString) {
@@ -306,67 +315,77 @@ struct ServiceRowView: View {
 struct CursorServiceRow: View {
     let hasAccess: Bool
     let metrics: UsageMetrics?
+    @Binding var expandedCard: ExpandedCard
 
     @StateObject private var cursorService = CursorLocalService.shared
     @StateObject private var dataManager = UsageDataManager.shared
-    @State private var isExpanded: Bool = false
 
-    private var headerColor: Color {
-        hasAccess ? .blue : .gray
-    }
+    private var isExpanded: Bool { expandedCard == .cursor }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack {
-                Image(systemName: ServiceType.cursor.iconName)
-                    .foregroundColor(headerColor)
-                Text(ServiceType.cursor.displayName)
-                    .font(.headline)
-                Spacer()
+            // Header - entire row is tappable
+            Button(action: {
+                expandedCard = isExpanded ? .none : .cursor
+            }) {
+                HStack {
+                    Image(systemName: ServiceType.cursor.iconName)
+                        .foregroundColor(headerColor)
+                    Text(ServiceType.cursor.displayName)
+                        .font(.headline)
+                        .foregroundColor(.primary)
 
-                if hasAccess {
-                    if let metrics = metrics {
-                        StatusIndicator(status: metrics.overallStatus)
+                    // Show compact progress bar when collapsed
+                    if !isExpanded, hasAccess, let metrics = metrics, let session = metrics.weeklyLimit {
+                        CompactProgressBar(percentage: session.percentage, color: session.statusColor.color)
                     }
 
-                    Button(action: { isExpanded.toggle() }) {
-                        Image(systemName: isExpanded ? "chevron.up" : "gearshape")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
-                } else {
-                    Button(action: { isExpanded.toggle() }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: isExpanded ? "chevron.up" : "gearshape")
-                            Text(isExpanded ? "Close" : "Configure")
+                    Spacer()
+
+                    if hasAccess {
+                        if let metrics = metrics {
+                            StatusIndicator(status: metrics.overallStatus)
                         }
-                        .font(.caption)
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                 }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if !hasAccess {
+                Text("Log in to Cursor IDE to enable")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Button(action: {
+                    cursorService.checkAccess()
+                    if cursorService.hasAccess {
+                        Task { await dataManager.refreshAll() }
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Check Again")
+                    }
+                    .font(.caption)
+                }
+                .buttonStyle(.bordered)
             }
 
-            if hasAccess, let metrics = metrics {
+            // Expanded content
+            if isExpanded, hasAccess, let metrics = metrics {
                 Divider()
-
-                if let sessionLimit = metrics.sessionLimit {
-                    LimitRow(title: "Session", limit: sessionLimit)
-                }
 
                 if let weeklyLimit = metrics.weeklyLimit {
                     LimitRow(title: "Monthly", limit: weeklyLimit)
                 }
 
-                if let additionalLimit = metrics.codeReviewLimit {
-                    LimitRow(title: "Additional", limit: additionalLimit)
-                }
-
                 if let subscriptionType = cursorService.subscriptionType {
                     HStack {
-                        Text(subscriptionType.capitalized)
+                        Text(formatSubscriptionType(subscriptionType))
                             .font(.caption)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
@@ -382,41 +401,6 @@ struct CursorServiceRow: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-
-                if isExpanded {
-                    Divider()
-                    Button("Refresh Now") {
-                        Task {
-                            await dataManager.refresh(service: .cursor)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                }
-            } else {
-                Text("Automatically reads Cursor IDE credentials from macOS Keychain.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Text("Log in to Cursor IDE first: open Cursor and sign in to your account")
-                    .font(.caption)
-                    .foregroundColor(.orange)
-
-                if isExpanded {
-                    Divider()
-                    Button("Check Again") {
-                        cursorService.checkAccess()
-                        if cursorService.hasAccess {
-                            Task {
-                                await dataManager.refreshAll()
-                            }
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                }
             }
         }
         .padding()
@@ -424,10 +408,26 @@ struct CursorServiceRow: View {
         .cornerRadius(8)
     }
 
+    private var headerColor: Color {
+        if hasAccess, let metrics = metrics {
+            return metrics.overallStatus.color
+        }
+        return .gray
+    }
+
     private func formatDate(_ date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func formatSubscriptionType(_ type: String) -> String {
+        switch type.lowercased() {
+        case "pro_plus":
+            return "Pro+"
+        default:
+            return type.replacingOccurrences(of: "_", with: " ").capitalized
+        }
     }
 }
 
@@ -436,46 +436,67 @@ struct CursorServiceRow: View {
 struct ClaudeCodeServiceRow: View {
     let hasAccess: Bool
     let metrics: UsageMetrics?
+    @Binding var expandedCard: ExpandedCard
 
     @StateObject private var claudeCodeService = ClaudeCodeLocalService.shared
     @StateObject private var dataManager = UsageDataManager.shared
-    @State private var isExpanded: Bool = true  // Default expanded when has data
+
+    private var isExpanded: Bool { expandedCard == .claudeCode }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header - tappable to expand/collapse
-            HStack {
-                Image(systemName: ServiceType.claudeCode.iconName)
-                    .foregroundColor(headerColor)
-                Text(ServiceType.claudeCode.displayName)
-                    .font(.headline)
-                Spacer()
+            // Header - entire row is tappable
+            Button(action: {
+                expandedCard = isExpanded ? .none : .claudeCode
+            }) {
+                HStack {
+                    Image(systemName: ServiceType.claudeCode.iconName)
+                        .foregroundColor(headerColor)
+                    Text(ServiceType.claudeCode.displayName)
+                        .font(.headline)
+                        .foregroundColor(.primary)
 
-                if hasAccess {
-                    if let metrics = metrics {
-                        StatusIndicator(status: metrics.overallStatus)
+                    // Show compact progress bar when collapsed
+                    if !isExpanded, hasAccess, let metrics = metrics, let session = metrics.sessionLimit {
+                        CompactProgressBar(percentage: session.percentage, color: session.statusColor.color)
                     }
 
-                    Button(action: { isExpanded.toggle() }) {
+                    Spacer()
+
+                    if hasAccess {
+                        if let metrics = metrics {
+                            StatusIndicator(status: metrics.overallStatus)
+                        }
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                             .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
-                } else {
-                    Button(action: { isExpanded.toggle() }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: isExpanded ? "chevron.up" : "gearshape")
-                            Text(isExpanded ? "Close" : "Configure")
-                        }
-                        .font(.caption)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
                 }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if !hasAccess {
+                Text("Log in to Claude Code CLI to enable")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Button(action: {
+                    claudeCodeService.checkAccess()
+                    if claudeCodeService.hasAccess {
+                        Task { await dataManager.refreshAll() }
+                    }
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.clockwise")
+                        Text("Check Again")
+                    }
+                    .font(.caption)
+                }
+                .buttonStyle(.bordered)
             }
 
-            // Expanded content - usage metrics
+            // Expanded content
             if isExpanded, hasAccess, let metrics = metrics {
                 Divider()
 
@@ -509,17 +530,81 @@ struct ClaudeCodeServiceRow: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
-            } else if !hasAccess {
-                Text("Log in to Claude Code CLI to enable")
+            }
+        }
+        .padding()
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+    }
+
+    private var headerColor: Color {
+        if hasAccess, let metrics = metrics {
+            return metrics.overallStatus.color
+        }
+        return .gray
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+// MARK: - Codex CLI Service Row (Local Files)
+
+struct CodexCliServiceRow: View {
+    let hasAccess: Bool
+    let metrics: UsageMetrics?
+    @Binding var expandedCard: ExpandedCard
+
+    @StateObject private var codexCliService = CodexCliLocalService.shared
+    @StateObject private var dataManager = UsageDataManager.shared
+
+    private var isExpanded: Bool { expandedCard == .codexCli }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header - entire row is tappable
+            Button(action: {
+                expandedCard = isExpanded ? .none : .codexCli
+            }) {
+                HStack {
+                    Image(systemName: ServiceType.codexCli.iconName)
+                        .foregroundColor(headerColor)
+                    Text(ServiceType.codexCli.displayName)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    // Show compact progress bar when collapsed
+                    if !isExpanded, hasAccess, let metrics = metrics, let session = metrics.sessionLimit {
+                        CompactProgressBar(percentage: session.percentage, color: session.statusColor.color)
+                    }
+
+                    Spacer()
+
+                    if hasAccess {
+                        if let metrics = metrics {
+                            StatusIndicator(status: metrics.overallStatus)
+                        }
+                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if !hasAccess {
+                Text("Log in to Codex CLI to enable")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 Button(action: {
-                    claudeCodeService.checkAccess()
-                    if claudeCodeService.hasAccess {
-                        Task {
-                            await dataManager.refreshAll()
-                        }
+                    codexCliService.checkAccess()
+                    if codexCliService.hasAccess {
+                        Task { await dataManager.refreshAll() }
                     }
                 }) {
                     HStack {
@@ -529,6 +614,42 @@ struct ClaudeCodeServiceRow: View {
                     .font(.caption)
                 }
                 .buttonStyle(.bordered)
+            }
+
+            // Expanded content
+            if isExpanded, hasAccess, let metrics = metrics {
+                Divider()
+
+                if let sessionLimit = metrics.sessionLimit {
+                    LimitRow(title: "5 Hour Limit", limit: sessionLimit)
+                }
+
+                if let weeklyLimit = metrics.weeklyLimit {
+                    LimitRow(title: "Weekly Limit", limit: weeklyLimit)
+                }
+
+                if let codeReviewLimit = metrics.codeReviewLimit {
+                    LimitRow(title: "Code Review", limit: codeReviewLimit)
+                }
+
+                if let subscriptionType = codexCliService.subscriptionType {
+                    HStack {
+                        Text(subscriptionType.replacingOccurrences(of: "_", with: " ").capitalized)
+                            .font(.caption)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green.opacity(0.2))
+                            .cornerRadius(4)
+                        Spacer()
+                        Text("Updated: \(formatDate(metrics.lastUpdated))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    Text("Updated: \(formatDate(metrics.lastUpdated))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .padding()
@@ -611,28 +732,15 @@ struct LimitRow: View {
                     .bold()
             }
 
-            ProgressView(value: limit.used, total: limit.total)
+            ProgressView(value: min(max(limit.used, 0), limit.total), total: limit.total)
                 .tint(limit.statusColor.color)
 
-            HStack {
-                Text("\(formatNumber(limit.used)) / \(formatNumber(limit.total))")
+            if let resetTime = limit.resetTime {
+                Text("Resets: \(formatResetTime(resetTime))")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                Spacer()
-                if let resetTime = limit.resetTime {
-                    Text("Resets: \(formatResetTime(resetTime))")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
             }
         }
-    }
-
-    private func formatNumber(_ value: Double) -> String {
-        if value >= 1000 {
-            return String(format: "%.1fk", value / 1000)
-        }
-        return String(format: "%.0f", value)
     }
 
     private func formatResetTime(_ date: Date) -> String {
@@ -649,5 +757,26 @@ struct StatusIndicator: View {
         Circle()
             .fill(status.color)
             .frame(width: 8, height: 8)
+    }
+}
+
+// MARK: - Compact Progress Bar (for collapsed headers)
+
+struct CompactProgressBar: View {
+    let percentage: Double
+    let color: Color
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            // Background track
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 40, height: 4)
+
+            // Progress fill
+            RoundedRectangle(cornerRadius: 2)
+                .fill(color)
+                .frame(width: 40 * min(max(percentage, 0), 100) / 100, height: 4)
+        }
     }
 }

@@ -1,7 +1,7 @@
 import XCTest
 @testable import QuotaGuard
 
-/// Integration tests to verify API access for Claude, OpenAI, Cursor, and Claude Code services.
+/// Integration tests to verify API access for Claude, OpenAI, Cursor, Claude Code, and Codex CLI services.
 /// These tests make real API calls and require valid credentials to be set up.
 final class APIIntegrationTests: XCTestCase {
 
@@ -187,6 +187,83 @@ final class APIIntegrationTests: XCTestCase {
         }
     }
 
+    // MARK: - Codex CLI Tests
+
+    func testCodexCliAPIAccess() async throws {
+        print("\n" + String(repeating: "=", count: 60))
+        print("🟠 CODEX CLI API TEST")
+        print(String(repeating: "=", count: 60))
+
+        let codexCliService = CodexCliLocalService.shared
+
+        // Check if auth token exists
+        guard codexCliService.hasAccess else {
+            print("⚠️  SKIPPED: No Codex CLI auth token found")
+            print("   To test: Log into Codex CLI (codex login)")
+            throw XCTSkip("Codex CLI auth token not found")
+        }
+
+        print("✓ Codex CLI auth token found")
+
+        if let subType = codexCliService.subscriptionType {
+            print("  Subscription: \(subType)")
+        }
+
+        // Attempt to fetch usage metrics
+        do {
+            let metrics = try await codexCliService.fetchUsageMetrics()
+
+            print("✅ SUCCESS: Codex CLI API access verified!")
+            print("\nUsage Data Retrieved:")
+            print("  Service: \(metrics.service.displayName)")
+
+            if let session = metrics.sessionLimit {
+                print("  5-Hour Session:")
+                print("    - Utilization: \(String(format: "%.1f", session.used))%")
+                if let resetTime = session.resetTime {
+                    print("    - Resets: \(formatDate(resetTime))")
+                }
+            }
+
+            if let weekly = metrics.weeklyLimit {
+                print("  7-Day Weekly:")
+                print("    - Utilization: \(String(format: "%.1f", weekly.used))%")
+                if let resetTime = weekly.resetTime {
+                    print("    - Resets: \(formatDate(resetTime))")
+                }
+            }
+
+            if let codeReview = metrics.codeReviewLimit {
+                print("  Code Review:")
+                print("    - Utilization: \(String(format: "%.1f", codeReview.used))%")
+                if let resetTime = codeReview.resetTime {
+                    print("    - Resets: \(formatDate(resetTime))")
+                }
+            }
+
+            XCTAssertEqual(metrics.service, .codexCli)
+            // Note: sessionLimit may be nil for free accounts
+            // XCTAssertNotNil(metrics.sessionLimit)
+
+        } catch {
+            print("❌ FAILED: \(error.localizedDescription)")
+
+            // Check for specific error types
+            if let serviceError = error as? ServiceError {
+                switch serviceError {
+                case .notAuthenticated:
+                    print("   Auth token may be expired or invalid")
+                case .apiError(let msg):
+                    print("   API Error: \(msg)")
+                default:
+                    break
+                }
+            }
+
+            XCTFail("Codex CLI API call failed: \(error)")
+        }
+    }
+
     // MARK: - Cursor Tests
 
     func testCursorAPIAccess() async throws {
@@ -263,6 +340,7 @@ final class APIIntegrationTests: XCTestCase {
 
         let authManager = AuthenticationManager.shared
         let claudeCodeService = ClaudeCodeLocalService.shared
+        let codexCliService = CodexCliLocalService.shared
         let cursorService = CursorLocalService.shared
 
         var results: [(String, String, String)] = []
@@ -304,6 +382,19 @@ final class APIIntegrationTests: XCTestCase {
             }
         } else {
             results.append(("Claude Code", "⚪ Not Configured", "Run 'claude login'"))
+        }
+
+        // Codex CLI
+        if codexCliService.hasAccess {
+            do {
+                let metrics = try await codexCliService.fetchUsageMetrics()
+                let usage = metrics.sessionLimit.map { "\(String(format: "%.1f", $0.percentage))% (5h)" } ?? "N/A"
+                results.append(("Codex CLI", "✅ Connected", usage))
+            } catch {
+                results.append(("Codex CLI", "❌ Error", "\(error.localizedDescription.prefix(40))..."))
+            }
+        } else {
+            results.append(("Codex CLI", "⚪ Not Configured", "Run 'codex login'"))
         }
 
         // Cursor
