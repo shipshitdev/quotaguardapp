@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 @MainActor
 class UsageDataManager: ObservableObject {
@@ -8,6 +9,16 @@ class UsageDataManager: ObservableObject {
     @Published var metrics: [ServiceType: UsageMetrics] = [:]
     @Published var isLoading: Bool = false
     @Published var lastError: Error?
+
+    @AppStorage("refreshInterval") private var refreshIntervalRaw: Int = RefreshInterval.fifteenMinutes.rawValue
+
+    var refreshInterval: RefreshInterval {
+        get { RefreshInterval(rawValue: refreshIntervalRaw) ?? .fifteenMinutes }
+        set {
+            refreshIntervalRaw = newValue.rawValue
+            setupAutoRefresh()
+        }
+    }
 
     private let claudeService = ClaudeService.shared
     private let claudeCodeService = ClaudeCodeLocalService.shared
@@ -231,8 +242,14 @@ class UsageDataManager: ObservableObject {
     }
 
     private func setupAutoRefresh() {
-        // Refresh every 15 minutes
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { [weak self] _ in
+        // Cancel existing timer
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+
+        // Don't schedule if manual refresh only
+        guard refreshInterval != .manual else { return }
+
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: refreshInterval.seconds, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 await self?.refreshAll()
             }

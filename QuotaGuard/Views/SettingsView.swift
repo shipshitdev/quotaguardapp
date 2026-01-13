@@ -6,6 +6,7 @@ struct SettingsView: View {
     @StateObject private var dataManager = UsageDataManager.shared
     @StateObject private var claudeCodeService = ClaudeCodeLocalService.shared
     @StateObject private var cursorService = CursorLocalService.shared
+    @StateObject private var costTracker = CostTracker.shared
 
     @State private var claudeAdminKey: String = ""
     @State private var openaiAdminKey: String = ""
@@ -175,8 +176,79 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Actions") {
-                Button("Refresh All Data") {
+            Section("Cost Tracking (Last 30 Days)") {
+                if costTracker.isScanning {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                        Text("Scanning sessions...")
+                            .foregroundColor(.secondary)
+                    }
+                } else if let summary = costTracker.costSummary {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Total Cost")
+                            Spacer()
+                            Text(summary.formattedTotalCost)
+                                .bold()
+                                .foregroundColor(.primary)
+                        }
+
+                        HStack {
+                            Text("Daily Average")
+                            Spacer()
+                            Text(summary.formattedDailyCost)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Divider()
+
+                        ForEach(summary.costs) { cost in
+                            HStack {
+                                Image(systemName: cost.provider.iconName)
+                                    .foregroundColor(.secondary)
+                                Text(cost.provider.displayName)
+                                Spacer()
+                                VStack(alignment: .trailing) {
+                                    Text(cost.formattedCost)
+                                        .font(.caption)
+                                    Text("\(cost.formattedTokens) tokens")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+
+                        if let lastScan = costTracker.lastScanDate {
+                            Text("Last scanned: \(lastScan, style: .relative) ago")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                } else {
+                    Text("No cost data available")
+                        .foregroundColor(.secondary)
+                }
+
+                Button("Scan Local Sessions") {
+                    Task {
+                        await costTracker.scanCosts(days: 30)
+                    }
+                }
+                .disabled(costTracker.isScanning)
+            }
+
+            Section("Refresh") {
+                Picker("Auto-refresh interval", selection: Binding(
+                    get: { dataManager.refreshInterval },
+                    set: { dataManager.refreshInterval = $0 }
+                )) {
+                    ForEach(RefreshInterval.allCases) { interval in
+                        Text(interval.displayName).tag(interval)
+                    }
+                }
+
+                Button("Refresh Now") {
                     Task {
                         await dataManager.refreshAll()
                     }

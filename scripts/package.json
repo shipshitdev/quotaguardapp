@@ -1,0 +1,10 @@
+{
+  "name": "quotaguard-scripts",
+  "private": true,
+  "scripts": {
+    "social-preview": "bun run generate-social-preview.ts"
+  },
+  "devDependencies": {
+    "playwright": "1.57.0"
+  }
+}

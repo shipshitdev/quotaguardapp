@@ -53,31 +53,37 @@ A lightweight macOS menu bar app that monitors Claude Code, Codex CLI, and Curso
 
 ## Installation
 
-### Prerequisites
+### Homebrew (Recommended)
 
-- macOS 13.0 or later
-- Xcode 15.0+ (for building from source)
+```bash
+brew tap shipshitdev/tap
+brew install --cask quotaguard
+```
 
-### Build from Source
+To update:
+```bash
+brew upgrade --cask quotaguard
+```
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/user/quotaguard.git
-   cd quotaguard
-   ```
-
-2. Open in Xcode:
-   ```bash
-   open QuotaGuard.xcodeproj
-   ```
-
-3. Build and run (Cmd+R)
-
-### Pre-built Binary
+### Manual Download
 
 Download the latest release from the [Releases](https://github.com/shipshitdev/quotaguardapp/releases) page.
 
-> **Note**: Since the app isn't notarized, you may need to right-click and select "Open" the first time, or allow it in System Settings > Privacy & Security.
+> **Note**: Since the app isn't notarized, you may need to right-click and select "Open" the first time, or run:
+> ```bash
+> xattr -cr /Applications/QuotaGuard.app
+> ```
+
+### Build from Source
+
+Prerequisites: macOS 13.0+, Xcode 15.0+
+
+```bash
+git clone https://github.com/shipshitdev/quotaguardapp.git
+cd quotaguardapp
+open QuotaGuard.xcodeproj
+# Build and run (Cmd+R)
+```
 
 ## Setup
 
@@ -122,6 +128,32 @@ Download the latest release from the [Releases](https://github.com/shipshitdev/q
 | Green | < 50% used - plenty remaining |
 | Yellow | 50-80% used - approaching limit |
 | Red | > 80% used - near or at limit |
+
+## CLI Tool
+
+Quota Guard includes a command-line tool for scripts and automation.
+
+```bash
+# Show current usage
+quotaguard usage
+
+# JSON output for scripts
+quotaguard usage --json
+
+# Filter by provider
+quotaguard usage --provider claude
+
+# Show token costs (last 30 days)
+quotaguard cost
+
+# Cost for specific period
+quotaguard cost --days 7 --json
+```
+
+The CLI is automatically installed when using Homebrew. For manual installs, it's located at:
+```
+/Applications/Quota Guard.app/Contents/Helpers/quotaguard
+```
 
 ## How It Works
 

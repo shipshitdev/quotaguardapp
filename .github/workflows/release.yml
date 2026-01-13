@@ -33,23 +33,52 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Build CLI
+        run: |
+          cd QuotaGuardCLI
+          swift build -c release
+          mkdir -p ../build/Build/Products/Release/QuotaGuard.app/Contents/Helpers
+          cp .build/release/quotaguard ../build/Build/Products/Release/QuotaGuard.app/Contents/Helpers/
+
       - name: Create release package
         run: |
+          VERSION="${{ github.ref_name }}"
+
           # Find the built app
           APP_PATH=$(find build -name "QuotaGuard.app" -type d | head -1)
           echo "Found app at: $APP_PATH"
 
-          # Create a zip
+          # Create zip using ditto (preserves attributes better than zip)
           cd $(dirname "$APP_PATH")
-          zip -r QuotaGuard-${{ github.ref_name }}.zip QuotaGuard.app
-          mv QuotaGuard-${{ github.ref_name }}.zip ${{ github.workspace }}/
+          ditto -c -k --keepParent "QuotaGuard.app" "QuotaGuard-${VERSION}.zip"
+
+          # Compute SHA256
+          SHA256=$(shasum -a 256 "QuotaGuard-${VERSION}.zip" | cut -d ' ' -f 1)
+          echo "SHA256: $SHA256"
+          echo "$SHA256" > "QuotaGuard-${VERSION}.zip.sha256"
+
+          # Move to workspace root
+          mv "QuotaGuard-${VERSION}.zip" "${{ github.workspace }}/"
+          mv "QuotaGuard-${VERSION}.zip.sha256" "${{ github.workspace }}/"
+
+          # Set output for later steps
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+        id: package
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
-          files: QuotaGuard-${{ github.ref_name }}.zip
+          files: |
+            QuotaGuard-${{ github.ref_name }}.zip
+            QuotaGuard-${{ github.ref_name }}.zip.sha256
           draft: false
           prerelease: false
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Output SHA256
+        run: |
+          echo "### Release Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256:** \`$(cat QuotaGuard-${{ github.ref_name }}.zip.sha256)\`" >> $GITHUB_STEP_SUMMARY

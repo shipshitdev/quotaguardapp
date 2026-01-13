@@ -1,35 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#1a1a2e"/>
-      <stop offset="100%" style="stop-color:#16213e"/>
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#0f0f1a"/>
     </linearGradient>
-    <linearGradient id="green" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#00d26a"/>
-      <stop offset="100%" style="stop-color:#00f5a0"/>
+    <!-- Green for low usage -->
+    <linearGradient id="barGreen" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#4ade80"/>
     </linearGradient>
-    <linearGradient id="orange" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#f7971e"/>
-      <stop offset="100%" style="stop-color:#ffd200"/>
+    <!-- Yellow for medium usage -->
+    <linearGradient id="barYellow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
     </linearGradient>
-    <linearGradient id="red" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#f5365c"/>
-      <stop offset="100%" style="stop-color:#ff6b6b"/>
+    <!-- Red for high usage -->
+    <linearGradient id="barRed" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#f87171"/>
     </linearGradient>
   </defs>
 
   <!-- Background -->
   <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="url(#bg)"/>
 
-  <!-- Bar 1 - Green (short ~30%) -->
-  <rect x="112" y="168" width="288" height="32" rx="16" fill="#2a2a4a"/>
-  <rect x="112" y="168" width="86" height="32" rx="16" fill="url(#green)"/>
+  <!-- Bar 1: ~30% filled - Green (good) -->
+  <rect x="96" y="152" width="320" height="44" rx="22" fill="#2a2a4a"/>
+  <rect x="96" y="152" width="96" height="44" rx="22" fill="url(#barGreen)"/>
 
-  <!-- Bar 2 - Orange (half ~50%) -->
-  <rect x="112" y="240" width="288" height="32" rx="16" fill="#2a2a4a"/>
-  <rect x="112" y="240" width="144" height="32" rx="16" fill="url(#orange)"/>
+  <!-- Bar 2: ~55% filled - Yellow (warning) -->
+  <rect x="96" y="234" width="320" height="44" rx="22" fill="#2a2a4a"/>
+  <rect x="96" y="234" width="176" height="44" rx="22" fill="url(#barYellow)"/>
 
-  <!-- Bar 3 - Red (almost full ~90%) -->
-  <rect x="112" y="312" width="288" height="32" rx="16" fill="#2a2a4a"/>
-  <rect x="112" y="312" width="259" height="32" rx="16" fill="url(#red)"/>
+  <!-- Bar 3: ~85% filled - Red (critical) -->
+  <rect x="96" y="316" width="320" height="44" rx="22" fill="#2a2a4a"/>
+  <rect x="96" y="316" width="272" height="44" rx="22" fill="url(#barRed)"/>
 </svg>
