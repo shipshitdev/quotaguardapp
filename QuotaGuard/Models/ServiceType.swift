@@ -14,7 +14,7 @@ enum ServiceType: String, Codable, CaseIterable, Identifiable {
         case .claude: return "Claude API"
         case .claudeCode: return "Claude Code"
         case .openai: return "OpenAI"
-        case .codexCli: return "Codex CLI"
+        case .codexCli: return "OpenAI Codex"
         case .cursor: return "Cursor"
         }
     }

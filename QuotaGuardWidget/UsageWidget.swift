@@ -17,18 +17,28 @@ enum ServiceType: String, Codable, CaseIterable, Identifiable {
         case .claude: return "Claude API"
         case .claudeCode: return "Claude Code"
         case .openai: return "OpenAI"
-        case .codexCli: return "Codex CLI"
+        case .codexCli: return "OpenAI Codex"
         case .cursor: return "Cursor"
         }
     }
 
     var iconName: String {
         switch self {
-        case .claude: return "sparkles"
-        case .claudeCode: return "terminal"
-        case .openai: return "brain"
-        case .codexCli: return "terminal.fill"
-        case .cursor: return "cursorarrow.click"
+        case .claude: return "ClaudeIcon"
+        case .claudeCode: return "ClaudeIcon"
+        case .openai: return "OpenAIIcon"
+        case .codexCli: return "CodexIcon"
+        case .cursor: return "CursorIcon"
+        }
+    }
+
+    var sortOrder: Int {
+        switch self {
+        case .claudeCode: return 0
+        case .claude: return 1
+        case .codexCli: return 2
+        case .cursor: return 3
+        case .openai: return 4
         }
     }
 }
@@ -55,6 +65,14 @@ struct UsageLimit: Codable, Equatable {
     var percentage: Double {
         guard total > 0 else { return 0 }
         return min(100, max(0, (used / total) * 100))
+    }
+
+    var clampedUsed: Double {
+        return max(0, min(used, total))
+    }
+
+    var clampedTotal: Double {
+        return max(0.001, total)
     }
 
     var remaining: Double {
@@ -180,6 +198,10 @@ struct UsageWidget: Widget {
 struct UsageWidgetEntry: TimelineEntry {
     let date: Date
     let metrics: [ServiceType: UsageMetrics]
+
+    var sortedServices: [ServiceType] {
+        metrics.keys.sorted { $0.sortOrder < $1.sortOrder }
+    }
 }
 
 struct UsageWidgetProvider: TimelineProvider {
@@ -246,17 +268,17 @@ struct SmallWidgetView: View {
     let entry: UsageWidgetEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Quota Guard")
-                .font(.headline)
-
-            if let firstService = entry.metrics.keys.first,
-               let metrics = entry.metrics[firstService] {
-                ServiceCompactView(metrics: metrics)
-            } else {
+        VStack(alignment: .leading, spacing: 6) {
+            if entry.metrics.isEmpty {
                 Text("No data")
                     .font(.caption)
                     .foregroundColor(.secondary)
+            } else {
+                ForEach(entry.sortedServices.prefix(3), id: \.self) { service in
+                    if let metrics = entry.metrics[service] {
+                        ServiceMiniView(metrics: metrics)
+                    }
+                }
             }
         }
         .padding()
@@ -265,20 +287,40 @@ struct SmallWidgetView: View {
     }
 }
 
+struct ServiceMiniView: View {
+    let metrics: UsageMetrics
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(metrics.service.iconName)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 14, height: 14)
+
+            if let weeklyLimit = metrics.weeklyLimit {
+                ProgressView(value: weeklyLimit.clampedUsed, total: weeklyLimit.clampedTotal)
+                    .tint(weeklyLimit.statusColor.color)
+                Text("\(Int(weeklyLimit.percentage))%")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            WidgetStatusIndicator(status: metrics.overallStatus)
+        }
+    }
+}
+
 struct MediumWidgetView: View {
     let entry: UsageWidgetEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Quota Guard")
-                .font(.headline)
-
+        VStack(alignment: .leading, spacing: 10) {
             if entry.metrics.isEmpty {
                 Text("No services connected")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                ForEach(Array(entry.metrics.keys), id: \.self) { service in
+                ForEach(entry.sortedServices, id: \.self) { service in
                     if let metrics = entry.metrics[service] {
                         ServiceCompactView(metrics: metrics)
                     }
@@ -295,11 +337,7 @@ struct LargeWidgetView: View {
     let entry: UsageWidgetEntry
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Quota Guard")
-                .font(.title2)
-                .bold()
-
+        VStack(alignment: .leading, spacing: 0) {
             if entry.metrics.isEmpty {
                 VStack {
                     Image(systemName: "exclamationmark.triangle")
@@ -311,9 +349,12 @@ struct LargeWidgetView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ForEach(Array(entry.metrics.keys), id: \.self) { service in
+                ForEach(entry.sortedServices.prefix(7), id: \.self) { service in
                     if let metrics = entry.metrics[service] {
-                        ServiceDetailView(metrics: metrics)
+                        ServiceCompactView(metrics: metrics)
+                        if service != entry.sortedServices.prefix(7).last {
+                            Spacer()
+                        }
                     }
                 }
             }
@@ -330,8 +371,10 @@ struct ServiceCompactView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Image(systemName: metrics.service.iconName)
-                    .foregroundColor(metrics.overallStatus.color)
+                Image(metrics.service.iconName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 18, height: 18)
                 Text(metrics.service.displayName)
                     .font(.subheadline)
                     .bold()
@@ -341,7 +384,7 @@ struct ServiceCompactView: View {
 
             if let weeklyLimit = metrics.weeklyLimit {
                 HStack {
-                    ProgressView(value: weeklyLimit.used, total: weeklyLimit.total)
+                    ProgressView(value: weeklyLimit.clampedUsed, total: weeklyLimit.clampedTotal)
                         .tint(weeklyLimit.statusColor.color)
                     Text("\(Int(weeklyLimit.percentage))%")
                         .font(.caption)
@@ -357,8 +400,10 @@ struct ServiceDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: metrics.service.iconName)
-                    .foregroundColor(metrics.overallStatus.color)
+                Image(metrics.service.iconName)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
                 Text(metrics.service.displayName)
                     .font(.headline)
                 Spacer()
@@ -398,7 +443,7 @@ struct LimitDetailView: View {
                     .bold()
             }
 
-            ProgressView(value: limit.used, total: limit.total)
+            ProgressView(value: limit.clampedUsed, total: limit.clampedTotal)
                 .tint(limit.statusColor.color)
 
             Text("\(formatNumber(limit.used)) / \(formatNumber(limit.total))")
