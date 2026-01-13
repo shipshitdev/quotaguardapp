@@ -20,7 +20,14 @@ let package = Package(
             name: "MeterBar",
             dependencies: [],
             path: "MeterBar",
-            exclude: ["Widget"]
+            exclude: [
+                "Widget",
+                "App/MeterBarApp.swift",
+                "Info.plist",
+                "MeterBar.entitlements",
+                "App/MeterBar.entitlements",
+                "Assets.xcassets"
+            ]
         ),
         .testTarget(
             name: "MeterBarTests",
