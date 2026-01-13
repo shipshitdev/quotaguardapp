@@ -35,7 +35,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // Set up the menu bar icon
-        if let image = NSImage(systemSymbolName: "chart.bar.fill", accessibilityDescription: "QuotaGuard") {
+        if let image = NSImage(systemSymbolName: "gauge.with.needle.fill", accessibilityDescription: "QuotaGuard") {
             image.isTemplate = true // Important for dark mode support
             button.image = image
             print("✅ Menu bar icon set successfully")
